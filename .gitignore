@@ -1,0 +1,14 @@
+.vs
+bin
+obj
+/编译
+/HyEye.Form/doc
+*.config
+*.sln
+/HyEyeDebug/DLL
+/HyEyeDebug/DLLconfig
+/packages
+/TestHeGong
+/WindowsFormsApp1
+/WindowsFormsApp2
+/更新日志
