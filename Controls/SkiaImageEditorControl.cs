@@ -42,6 +42,9 @@ public sealed class SkiaImageEditorControl : UserControl
     private float _zoom = 1f;
     private SKPoint? _polygonHoverPoint;
     private EditHandle? _activeHandle;
+    public SKColor PolygonEdgeColor { get; set; } = SKColors.Orange;
+    public SKColor PolygonVertexColor { get; set; } = SKColors.DeepSkyBlue;
+    public float PolygonVertexRadius { get; set; } = 4f;
 
     public SkiaImageEditorControl()
     {
@@ -150,7 +153,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_tool == EditorTool.Polygon && _polygonBuffer.Count > 1)
         {
-            using var p = new SKPaint { Color = SKColors.Orange, Style = SKPaintStyle.Stroke, StrokeWidth = 2 / _zoom };
+            using var p = new SKPaint { Color = PolygonEdgeColor, Style = SKPaintStyle.Stroke, StrokeWidth = 2 / _zoom };
             for (var i = 0; i < _polygonBuffer.Count - 1; i++)
             {
                 canvas.DrawLine(_polygonBuffer[i], _polygonBuffer[i + 1], p);
@@ -159,6 +162,14 @@ public sealed class SkiaImageEditorControl : UserControl
             if (_polygonHoverPoint is SKPoint hover)
             {
                 canvas.DrawLine(_polygonBuffer[^1], hover, p);
+            }
+        }
+        if (_tool == EditorTool.Polygon && _polygonBuffer.Count > 0)
+        {
+            using var v = new SKPaint { Color = PolygonVertexColor, Style = SKPaintStyle.Fill, IsAntialias = true };
+            foreach (var point in _polygonBuffer)
+            {
+                canvas.DrawCircle(point, PolygonVertexRadius / _zoom, v);
             }
         }
 
@@ -225,6 +236,14 @@ public sealed class SkiaImageEditorControl : UserControl
             return;
         }
 
+        if (_tool == EditorTool.Polygon && e.ChangedButton == MouseButton.Right && _polygonBuffer.Count > 0)
+        {
+            _polygonBuffer.Clear();
+            _polygonHoverPoint = null;
+            Redraw();
+            return;
+        }
+
         if (e.ChangedButton == MouseButton.Right && _selected is not null)
         {
             ContextMenu!.IsOpen = true;
@@ -271,8 +290,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_tool == EditorTool.Polygon && e.LeftButton == MouseButtonState.Pressed)
         {
-            var canCloseByDoubleClick = e.ClickCount > 1 && _polygonBuffer.Count >= 3 &&
-                                        Distance(p, _polygonBuffer[^1]) < 8f / _zoom;
+            var canCloseByDoubleClick = e.ClickCount > 1 && _polygonBuffer.Count >= 3;
             var canCloseByManualConnect = _polygonBuffer.Count >= 3 && Distance(p, _polygonBuffer[0]) < 8f / _zoom;
 
             if (canCloseByDoubleClick || canCloseByManualConnect)
@@ -340,7 +358,27 @@ public sealed class SkiaImageEditorControl : UserControl
         if (_tool == EditorTool.Polygon)
         {
             _polygonHoverPoint = p;
+            if (_polygonBuffer.Count > 0 && IsOnPolygonVertexPreview(p))
+            {
+                Cursor = Cursors.Hand;
+            }
+            else if (_selected is not null && HitTestHandle(_selected, p) is not null)
+            {
+                Cursor = Cursors.Hand;
+            }
+            else
+            {
+                Cursor = Cursors.Arrow;
+            }
             Redraw();
+        }
+        else if (_selected is not null && HitTestHandle(_selected, p) is not null)
+        {
+            Cursor = Cursors.Hand;
+        }
+        else
+        {
+            Cursor = Cursors.Arrow;
         }
     }
 
@@ -460,6 +498,19 @@ public sealed class SkiaImageEditorControl : UserControl
         }
 
         return null;
+    }
+
+    private bool IsOnPolygonVertexPreview(SKPoint p)
+    {
+        foreach (var point in _polygonBuffer)
+        {
+            if (Distance(point, p) <= 8f / _zoom)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void ResizeShapeByHandle(ShapeModel shape, EditHandle handle, SKPoint p)
