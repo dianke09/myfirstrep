@@ -1,4 +1,6 @@
 using System.IO;
+using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -125,7 +127,12 @@ public sealed class SkiaImageEditorControl : UserControl
             Shapes = _shapes
         };
 
-        File.WriteAllText(filePath, JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true }));
+        var jsonOptions = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
+        File.WriteAllText(filePath, JsonSerializer.Serialize(state, jsonOptions), new UTF8Encoding(false));
     }
 
     public void LoadState(string filePath)
@@ -241,7 +248,13 @@ public sealed class SkiaImageEditorControl : UserControl
         if (labelRect is null) return;
 
         using var bg = new SKPaint { Color = SKColors.Black.WithAlpha(130), Style = SKPaintStyle.Fill, IsAntialias = true };
-        using var textPaint = new SKPaint { Color = SKColors.White, IsAntialias = true, TextSize = 14f / _zoom };
+        using var textPaint = new SKPaint
+        {
+            Color = SKColors.White,
+            IsAntialias = true,
+            TextSize = 14f / _zoom,
+            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei")
+        };
         var padding = 4f / _zoom;
         canvas.DrawRoundRect(labelRect.Value, 3f / _zoom, 3f / _zoom, bg);
         canvas.DrawText(text, labelRect.Value.Left + padding, labelRect.Value.Bottom - 6f / _zoom, textPaint);
@@ -585,7 +598,11 @@ public sealed class SkiaImageEditorControl : UserControl
         var bounds = path.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0) return null;
 
-        using var textPaint = new SKPaint { TextSize = 14f / _zoom };
+        using var textPaint = new SKPaint
+        {
+            TextSize = 14f / _zoom,
+            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei")
+        };
         var textWidth = textPaint.MeasureText(text);
         var padding = 4f / _zoom;
         var labelHeight = 20f / _zoom;
