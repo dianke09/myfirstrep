@@ -42,6 +42,7 @@ public sealed class SkiaImageEditorControl : UserControl
     private float _zoom = 1f;
     private SKPoint? _polygonHoverPoint;
     private EditHandle? _activeHandle;
+    private readonly ContextMenu _draftPolygonMenu;
     public SKColor PolygonEdgeColor { get; set; } = SKColors.Orange;
     public SKColor PolygonVertexColor { get; set; } = SKColors.DeepSkyBlue;
     public float PolygonVertexRadius { get; set; } = 4f;
@@ -68,6 +69,16 @@ public sealed class SkiaImageEditorControl : UserControl
 
         ContextMenu = new ContextMenu();
         ContextMenu.Items.Add(deleteMenu);
+
+        var cancelDraftMenu = new MenuItem { Header = "取消当前多边形绘制" };
+        cancelDraftMenu.Click += (_, _) =>
+        {
+            _polygonBuffer.Clear();
+            _polygonHoverPoint = null;
+            Redraw();
+        };
+        _draftPolygonMenu = new ContextMenu();
+        _draftPolygonMenu.Items.Add(cancelDraftMenu);
 
         Content = _surface;
     }
@@ -151,7 +162,7 @@ public sealed class SkiaImageEditorControl : UserControl
             DrawShape(canvas, _drawing, isSelected: false, isHovered: false);
         }
 
-        if (_tool == EditorTool.Polygon && _polygonBuffer.Count > 1)
+        if (_tool == EditorTool.Polygon && _polygonBuffer.Count > 0)
         {
             using var p = new SKPaint { Color = PolygonEdgeColor, Style = SKPaintStyle.Stroke, StrokeWidth = 2 / _zoom };
             for (var i = 0; i < _polygonBuffer.Count - 1; i++)
@@ -238,9 +249,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_tool == EditorTool.Polygon && e.ChangedButton == MouseButton.Right && _polygonBuffer.Count > 0)
         {
-            _polygonBuffer.Clear();
-            _polygonHoverPoint = null;
-            Redraw();
+            _draftPolygonMenu.IsOpen = true;
             return;
         }
 
@@ -290,7 +299,8 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_tool == EditorTool.Polygon && e.LeftButton == MouseButtonState.Pressed)
         {
-            var canCloseByDoubleClick = e.ClickCount > 1 && _polygonBuffer.Count >= 3;
+            var canCloseByDoubleClick = e.ClickCount > 1 && _polygonBuffer.Count >= 3 &&
+                                        Distance(p, _polygonBuffer[^1]) < 8f / _zoom;
             var canCloseByManualConnect = _polygonBuffer.Count >= 3 && Distance(p, _polygonBuffer[0]) < 8f / _zoom;
 
             if (canCloseByDoubleClick || canCloseByManualConnect)
