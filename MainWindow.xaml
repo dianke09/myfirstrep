@@ -1,0 +1,23 @@
+<Window x:Class="Myfirstrep.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Skia 图像标注控件示例" Height="720" Width="1100">
+    <DockPanel>
+        <ToolBar DockPanel.Dock="Top">
+            <Button Content="加载图片" Click="LoadImage_Click"/>
+            <Button Content="选择" Click="Select_Click"/>
+            <Button Content="平移" Click="Pan_Click"/>
+            <Button Content="矩形" Click="Rectangle_Click"/>
+            <Button Content="圆形" Click="Ellipse_Click"/>
+            <Button Content="多边形" Click="Polygon_Click"/>
+            <Separator/>
+            <Button Content="保存状态" Click="SaveState_Click"/>
+            <Button Content="加载状态" Click="LoadState_Click"/>
+            <Button Content="添加示例图形" Click="AddDemoShape_Click"/>
+        </ToolBar>
+        <Grid Name="RootGrid" />
+    </DockPanel>
+</Window>
