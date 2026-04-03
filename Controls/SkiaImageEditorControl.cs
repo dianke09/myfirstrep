@@ -123,9 +123,7 @@ public sealed class SkiaImageEditorControl : UserControl
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.Black);
-
-        canvas.Translate(_pan.X, _pan.Y);
-        canvas.Scale(_zoom);
+        canvas.SetMatrix(CreateWorldToScreenMatrix());
 
         if (_bitmap is not null)
         {
@@ -312,7 +310,18 @@ public sealed class SkiaImageEditorControl : UserControl
     }
 
     private SKPoint ToWorld(Point p)
-        => new((float)((p.X - _pan.X) / _zoom), (float)((p.Y - _pan.Y) / _zoom));
+    {
+        var worldToScreen = CreateWorldToScreenMatrix();
+        if (!worldToScreen.TryInvert(out var screenToWorld))
+        {
+            return new SKPoint((float)p.X, (float)p.Y);
+        }
+
+        return screenToWorld.MapPoint(new SKPoint((float)p.X, (float)p.Y));
+    }
+
+    private SKMatrix CreateWorldToScreenMatrix()
+        => SKMatrix.CreateScaleTranslation(_zoom, _zoom, _pan.X, _pan.Y);
 
     private void Redraw() => _surface.InvalidateVisual();
 
