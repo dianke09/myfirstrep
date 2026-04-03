@@ -16,12 +16,16 @@ public enum EditorTool
     Select,
     Pan,
     Rectangle,
-    Ellipse,
+    Circle,
     Polygon
 }
 
 public sealed class SkiaImageEditorControl : UserControl
 {
+    private sealed class EditHandle
+    {
+        public int Index { get; set; }
+    }
     private readonly SKElement _surface;
     private readonly List<ShapeModel> _shapes = new();
     private readonly List<SKPoint> _polygonBuffer = new();
@@ -36,6 +40,8 @@ public sealed class SkiaImageEditorControl : UserControl
     private SKPoint _lastWorld;
     private SKPoint _pan = new(0, 0);
     private float _zoom = 1f;
+    private SKPoint? _polygonHoverPoint;
+    private EditHandle? _activeHandle;
 
     public SkiaImageEditorControl()
     {
@@ -149,6 +155,16 @@ public sealed class SkiaImageEditorControl : UserControl
             {
                 canvas.DrawLine(_polygonBuffer[i], _polygonBuffer[i + 1], p);
             }
+
+            if (_polygonHoverPoint is SKPoint hover)
+            {
+                canvas.DrawLine(_polygonBuffer[^1], hover, p);
+            }
+        }
+
+        if (_selected is not null)
+        {
+            DrawEditHandles(canvas, _selected);
         }
     }
 
@@ -226,17 +242,28 @@ public sealed class SkiaImageEditorControl : UserControl
             _selected = HitTest(p);
             if (_selected is not null && e.LeftButton == MouseButtonState.Pressed)
             {
+                _activeHandle = HitTestHandle(_selected, p);
+                if (_selected.Type == ShapeType.Polygon && _activeHandle is null)
+                {
+                    var edgeIndex = HitPolygonEdge(_selected, p);
+                    if (edgeIndex >= 0)
+                    {
+                        _selected.Points.Insert(edgeIndex + 1, p);
+                        _activeHandle = new EditHandle { Index = edgeIndex + 1 };
+                    }
+                }
+
                 _isShapeDragging = true;
             }
             Redraw();
             return;
         }
 
-        if (_tool == EditorTool.Rectangle || _tool == EditorTool.Ellipse)
+        if (_tool == EditorTool.Rectangle || _tool == EditorTool.Circle)
         {
             _drawing = new ShapeModel
             {
-                Type = _tool == EditorTool.Rectangle ? ShapeType.Rectangle : ShapeType.Ellipse,
+                Type = _tool == EditorTool.Rectangle ? ShapeType.Rectangle : ShapeType.Circle,
                 Points = new List<SKPoint> { p, p }
             };
             return;
@@ -244,10 +271,15 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_tool == EditorTool.Polygon && e.LeftButton == MouseButtonState.Pressed)
         {
-            if (e.ClickCount > 1 && _polygonBuffer.Count >= 3)
+            var canCloseByDoubleClick = e.ClickCount > 1 && _polygonBuffer.Count >= 3 &&
+                                        Distance(p, _polygonBuffer[^1]) < 8f / _zoom;
+            var canCloseByManualConnect = _polygonBuffer.Count >= 3 && Distance(p, _polygonBuffer[0]) < 8f / _zoom;
+
+            if (canCloseByDoubleClick || canCloseByManualConnect)
             {
                 _shapes.Add(new ShapeModel { Type = ShapeType.Polygon, Points = new List<SKPoint>(_polygonBuffer) });
                 _polygonBuffer.Clear();
+                _polygonHoverPoint = null;
             }
             else
             {
@@ -278,7 +310,14 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             var dx = p.X - _lastWorld.X;
             var dy = p.Y - _lastWorld.Y;
-            TranslateShape(_selected, dx, dy);
+            if (_activeHandle is not null)
+            {
+                ResizeShapeByHandle(_selected, _activeHandle, p);
+            }
+            else
+            {
+                TranslateShape(_selected, dx, dy);
+            }
             _lastWorld = p;
             Redraw();
             return;
@@ -297,12 +336,19 @@ public sealed class SkiaImageEditorControl : UserControl
             _hovered = hit;
             Redraw();
         }
+
+        if (_tool == EditorTool.Polygon)
+        {
+            _polygonHoverPoint = p;
+            Redraw();
+        }
     }
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
         _isCanvasPanning = false;
         _isShapeDragging = false;
+        _activeHandle = null;
         if (_drawing is not null)
         {
             _shapes.Add(_drawing);
@@ -317,6 +363,7 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             _shapes.Add(new ShapeModel { Type = ShapeType.Polygon, Points = new List<SKPoint>(_polygonBuffer) });
             _polygonBuffer.Clear();
+            _polygonHoverPoint = null;
             Redraw();
         }
     }
@@ -366,6 +413,129 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             shape.Points[i] = new SKPoint(shape.Points[i].X + dx, shape.Points[i].Y + dy);
         }
+    }
+
+    private void DrawEditHandles(SKCanvas canvas, ShapeModel shape)
+    {
+        using var paint = new SKPaint { Color = SKColors.Cyan, Style = SKPaintStyle.Fill, IsAntialias = true };
+        foreach (var pt in GetHandlePoints(shape))
+        {
+            canvas.DrawCircle(pt, 5 / _zoom, paint);
+        }
+    }
+
+    private List<SKPoint> GetHandlePoints(ShapeModel shape)
+    {
+        if (shape.Type == ShapeType.Rectangle && shape.Points.Count >= 2)
+        {
+            var minX = Math.Min(shape.Points[0].X, shape.Points[1].X);
+            var maxX = Math.Max(shape.Points[0].X, shape.Points[1].X);
+            var minY = Math.Min(shape.Points[0].Y, shape.Points[1].Y);
+            var maxY = Math.Max(shape.Points[0].Y, shape.Points[1].Y);
+            return new List<SKPoint>
+            {
+                new(minX, minY), new((minX + maxX) / 2f, minY), new(maxX, minY),
+                new(maxX, (minY + maxY) / 2f), new(maxX, maxY), new((minX + maxX) / 2f, maxY),
+                new(minX, maxY), new(minX, (minY + maxY) / 2f)
+            };
+        }
+
+        if (shape.Type == ShapeType.Circle && shape.Points.Count >= 2)
+        {
+            return new List<SKPoint> { shape.Points[0], shape.Points[1] };
+        }
+
+        return new List<SKPoint>(shape.Points);
+    }
+
+    private EditHandle? HitTestHandle(ShapeModel shape, SKPoint p)
+    {
+        var handles = GetHandlePoints(shape);
+        for (var i = 0; i < handles.Count; i++)
+        {
+            if (Distance(handles[i], p) <= 8f / _zoom)
+            {
+                return new EditHandle { Index = i };
+            }
+        }
+
+        return null;
+    }
+
+    private void ResizeShapeByHandle(ShapeModel shape, EditHandle handle, SKPoint p)
+    {
+        if (shape.Type == ShapeType.Circle && shape.Points.Count >= 2)
+        {
+            if (handle.Index == 0) shape.Points[0] = p;
+            else shape.Points[1] = p;
+            return;
+        }
+
+        if (shape.Type == ShapeType.Polygon)
+        {
+            if (handle.Index >= 0 && handle.Index < shape.Points.Count)
+            {
+                shape.Points[handle.Index] = p;
+            }
+            return;
+        }
+
+        if (shape.Type == ShapeType.Rectangle && shape.Points.Count >= 2)
+        {
+            var minX = Math.Min(shape.Points[0].X, shape.Points[1].X);
+            var maxX = Math.Max(shape.Points[0].X, shape.Points[1].X);
+            var minY = Math.Min(shape.Points[0].Y, shape.Points[1].Y);
+            var maxY = Math.Max(shape.Points[0].Y, shape.Points[1].Y);
+
+            switch (handle.Index)
+            {
+                case 0: minX = p.X; minY = p.Y; break;
+                case 1: minY = p.Y; break;
+                case 2: maxX = p.X; minY = p.Y; break;
+                case 3: maxX = p.X; break;
+                case 4: maxX = p.X; maxY = p.Y; break;
+                case 5: maxY = p.Y; break;
+                case 6: minX = p.X; maxY = p.Y; break;
+                case 7: minX = p.X; break;
+            }
+
+            shape.Points[0] = new SKPoint(minX, minY);
+            shape.Points[1] = new SKPoint(maxX, maxY);
+        }
+    }
+
+    private int HitPolygonEdge(ShapeModel shape, SKPoint p)
+    {
+        if (shape.Type != ShapeType.Polygon || shape.Points.Count < 2) return -1;
+        for (var i = 0; i < shape.Points.Count; i++)
+        {
+            var a = shape.Points[i];
+            var b = shape.Points[(i + 1) % shape.Points.Count];
+            if (DistancePointToSegment(p, a, b) <= 6f / _zoom &&
+                Distance(p, a) > 8f / _zoom && Distance(p, b) > 8f / _zoom)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static float DistancePointToSegment(SKPoint p, SKPoint a, SKPoint b)
+    {
+        var abx = b.X - a.X;
+        var aby = b.Y - a.Y;
+        var len2 = abx * abx + aby * aby;
+        if (len2 <= float.Epsilon) return Distance(p, a);
+        var t = Math.Clamp(((p.X - a.X) * abx + (p.Y - a.Y) * aby) / len2, 0f, 1f);
+        var proj = new SKPoint(a.X + t * abx, a.Y + t * aby);
+        return Distance(p, proj);
+    }
+
+    private static float Distance(SKPoint a, SKPoint b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return MathF.Sqrt(dx * dx + dy * dy);
     }
 
     private void FitImageToViewport()

@@ -5,7 +5,7 @@ namespace Myfirstrep.Models;
 public enum ShapeType
 {
     Rectangle,
-    Ellipse,
+    Circle,
     Polygon
 }
 
@@ -38,15 +38,12 @@ public sealed class ShapeModel
                     path.AddRect(r);
                 }
                 break;
-            case ShapeType.Ellipse:
+            case ShapeType.Circle:
                 if (Points.Count >= 2)
                 {
-                    var r = SKRect.Create(
-                        Math.Min(Points[0].X, Points[1].X),
-                        Math.Min(Points[0].Y, Points[1].Y),
-                        Math.Abs(Points[1].X - Points[0].X),
-                        Math.Abs(Points[1].Y - Points[0].Y));
-                    path.AddOval(r);
+                    var center = Points[0];
+                    var radius = Distance(center, Points[1]);
+                    path.AddCircle(center.X, center.Y, radius);
                 }
                 break;
             case ShapeType.Polygon:
@@ -63,6 +60,13 @@ public sealed class ShapeModel
         }
 
         return path;
+    }
+
+    private static float Distance(SKPoint a, SKPoint b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        return MathF.Sqrt(dx * dx + dy * dy);
     }
 }
 

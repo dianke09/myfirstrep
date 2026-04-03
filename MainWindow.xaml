@@ -11,7 +11,7 @@
             <Button Content="选择" Click="Select_Click"/>
             <Button Content="平移" Click="Pan_Click"/>
             <Button Content="矩形" Click="Rectangle_Click"/>
-            <Button Content="圆形" Click="Ellipse_Click"/>
+            <Button Content="圆形" Click="Circle_Click"/>
             <Button Content="多边形" Click="Polygon_Click"/>
             <Separator/>
             <Button Content="保存状态" Click="SaveState_Click"/>

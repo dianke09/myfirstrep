@@ -19,7 +19,7 @@ public partial class MainWindow : Window
     private void Select_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.Select);
     private void Pan_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.Pan);
     private void Rectangle_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.Rectangle);
-    private void Ellipse_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.Ellipse);
+    private void Circle_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.Circle);
     private void Polygon_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.Polygon);
     private void SaveState_Click(object sender, RoutedEventArgs e) => _editor.ShowSaveStateDialog();
     private void LoadState_Click(object sender, RoutedEventArgs e) => _editor.ShowLoadStateDialog();
