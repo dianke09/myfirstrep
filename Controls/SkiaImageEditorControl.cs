@@ -30,8 +30,10 @@ public sealed class SkiaImageEditorControl : UserControl
     private ShapeModel? _hovered;
     private ShapeModel? _drawing;
     private EditorTool _tool = EditorTool.Select;
-    private bool _isDragging;
+    private bool _isCanvasPanning;
+    private bool _isShapeDragging;
     private Point _lastMouse;
+    private SKPoint _lastWorld;
     private SKPoint _pan = new(0, 0);
     private float _zoom = 1f;
 
@@ -187,10 +189,10 @@ public sealed class SkiaImageEditorControl : UserControl
         _zoom = e.Delta > 0 ? _zoom * 1.1f : _zoom / 1.1f;
         _zoom = Math.Clamp(_zoom, 0.1f, 30f);
 
-        var pos = e.GetPosition(_surface);
-        var worldX = (float)((pos.X - _pan.X) / old);
-        var worldY = (float)((pos.Y - _pan.Y) / old);
-        _pan = new SKPoint((float)pos.X - worldX * _zoom, (float)pos.Y - worldY * _zoom);
+        var pos = ToSurfacePoint(e.GetPosition(_surface));
+        var worldX = (pos.X - _pan.X) / old;
+        var worldY = (pos.Y - _pan.Y) / old;
+        _pan = new SKPoint(pos.X - worldX * _zoom, pos.Y - worldY * _zoom);
         Redraw();
     }
 
@@ -199,6 +201,13 @@ public sealed class SkiaImageEditorControl : UserControl
         _surface.Focus();
         _lastMouse = e.GetPosition(_surface);
         var p = ToWorld(_lastMouse);
+        _lastWorld = p;
+
+        if (e.LeftButton == MouseButtonState.Pressed && e.ClickCount > 1)
+        {
+            FitImageToViewport();
+            return;
+        }
 
         if (e.ChangedButton == MouseButton.Right && _selected is not null)
         {
@@ -206,15 +215,19 @@ public sealed class SkiaImageEditorControl : UserControl
             return;
         }
 
-        if (_tool == EditorTool.Pan || e.MiddleButton == MouseButtonState.Pressed)
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.LeftButton == MouseButtonState.Pressed)
         {
-            _isDragging = true;
+            _isCanvasPanning = true;
             return;
         }
 
         if (_tool == EditorTool.Select)
         {
             _selected = HitTest(p);
+            if (_selected is not null && e.LeftButton == MouseButtonState.Pressed)
+            {
+                _isShapeDragging = true;
+            }
             Redraw();
             return;
         }
@@ -249,12 +262,24 @@ public sealed class SkiaImageEditorControl : UserControl
         var pos = e.GetPosition(_surface);
         var p = ToWorld(pos);
 
-        if (_isDragging)
+        if (_isCanvasPanning)
         {
-            var dx = (float)(pos.X - _lastMouse.X);
-            var dy = (float)(pos.Y - _lastMouse.Y);
+            var now = ToSurfacePoint(pos);
+            var before = ToSurfacePoint(_lastMouse);
+            var dx = now.X - before.X;
+            var dy = now.Y - before.Y;
             _pan = new SKPoint(_pan.X + dx, _pan.Y + dy);
             _lastMouse = pos;
+            Redraw();
+            return;
+        }
+
+        if (_isShapeDragging && _selected is not null && e.LeftButton == MouseButtonState.Pressed)
+        {
+            var dx = p.X - _lastWorld.X;
+            var dy = p.Y - _lastWorld.Y;
+            TranslateShape(_selected, dx, dy);
+            _lastWorld = p;
             Redraw();
             return;
         }
@@ -276,7 +301,8 @@ public sealed class SkiaImageEditorControl : UserControl
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
-        _isDragging = false;
+        _isCanvasPanning = false;
+        _isShapeDragging = false;
         if (_drawing is not null)
         {
             _shapes.Add(_drawing);
@@ -314,14 +340,52 @@ public sealed class SkiaImageEditorControl : UserControl
         var worldToScreen = CreateWorldToScreenMatrix();
         if (!worldToScreen.TryInvert(out var screenToWorld))
         {
-            return new SKPoint((float)p.X, (float)p.Y);
+            var fallback = ToSurfacePoint(p);
+            return new SKPoint(fallback.X, fallback.Y);
         }
 
-        return screenToWorld.MapPoint(new SKPoint((float)p.X, (float)p.Y));
+        var surface = ToSurfacePoint(p);
+        return screenToWorld.MapPoint(surface);
     }
 
     private SKMatrix CreateWorldToScreenMatrix()
         => SKMatrix.CreateScaleTranslation(_zoom, _zoom, _pan.X, _pan.Y);
+
+    private SKPoint ToSurfacePoint(Point p)
+    {
+        var width = _surface.ActualWidth <= 0 ? 1.0 : _surface.ActualWidth;
+        var height = _surface.ActualHeight <= 0 ? 1.0 : _surface.ActualHeight;
+        var scaleX = (float)(_surface.CanvasSize.Width / width);
+        var scaleY = (float)(_surface.CanvasSize.Height / height);
+        return new SKPoint((float)p.X * scaleX, (float)p.Y * scaleY);
+    }
+
+    private void TranslateShape(ShapeModel shape, float dx, float dy)
+    {
+        for (var i = 0; i < shape.Points.Count; i++)
+        {
+            shape.Points[i] = new SKPoint(shape.Points[i].X + dx, shape.Points[i].Y + dy);
+        }
+    }
+
+    private void FitImageToViewport()
+    {
+        if (_bitmap is null || _surface.CanvasSize.Width <= 0 || _surface.CanvasSize.Height <= 0)
+        {
+            return;
+        }
+
+        var viewportW = _surface.CanvasSize.Width;
+        var viewportH = _surface.CanvasSize.Height;
+        var sx = viewportW / (float)_bitmap.Width;
+        var sy = viewportH / (float)_bitmap.Height;
+        _zoom = Math.Clamp(Math.Min(sx, sy), 0.01f, 30f);
+
+        var drawW = _bitmap.Width * _zoom;
+        var drawH = _bitmap.Height * _zoom;
+        _pan = new SKPoint((viewportW - drawW) / 2f, (viewportH - drawH) / 2f);
+        Redraw();
+    }
 
     private void Redraw() => _surface.InvalidateVisual();
 
