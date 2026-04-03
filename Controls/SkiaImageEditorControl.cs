@@ -30,6 +30,7 @@ public sealed class SkiaImageEditorControl : UserControl
     private readonly List<ShapeModel> _shapes = new();
     private readonly List<SKPoint> _polygonBuffer = new();
     private SKBitmap? _bitmap;
+    private string? _imageFilePath;
     private ShapeModel? _selected;
     private ShapeModel? _hovered;
     private ShapeModel? _drawing;
@@ -93,6 +94,7 @@ public sealed class SkiaImageEditorControl : UserControl
     {
         using var stream = File.OpenRead(path);
         _bitmap = SKBitmap.Decode(stream);
+        _imageFilePath = path;
         Redraw();
     }
 
@@ -104,17 +106,22 @@ public sealed class SkiaImageEditorControl : UserControl
 
     public void SaveState(string filePath)
     {
-        string? base64 = null;
-        if (_bitmap is not null)
+        var stateDir = Path.GetDirectoryName(filePath) ?? Environment.CurrentDirectory;
+        string? imagePath = null;
+        if (!string.IsNullOrWhiteSpace(_imageFilePath) && File.Exists(_imageFilePath))
         {
-            using var image = SKImage.FromBitmap(_bitmap);
-            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-            base64 = Convert.ToBase64String(data.ToArray());
+            var fileName = Path.GetFileName(_imageFilePath);
+            var targetPath = Path.Combine(stateDir, fileName);
+            if (!string.Equals(Path.GetFullPath(_imageFilePath), Path.GetFullPath(targetPath), StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(_imageFilePath, targetPath, overwrite: true);
+            }
+            imagePath = fileName;
         }
 
         var state = new CanvasState
         {
-            ImageBase64 = base64,
+            ImagePath = imagePath,
             Shapes = _shapes
         };
 
@@ -125,12 +132,17 @@ public sealed class SkiaImageEditorControl : UserControl
     {
         var state = JsonSerializer.Deserialize<CanvasState>(File.ReadAllText(filePath));
         _shapes.Clear();
+        _bitmap = null;
+        _imageFilePath = null;
 
-        if (!string.IsNullOrWhiteSpace(state?.ImageBase64))
+        if (!string.IsNullOrWhiteSpace(state?.ImagePath))
         {
-            var bytes = Convert.FromBase64String(state.ImageBase64);
-            using var data = SKData.CreateCopy(bytes);
-            _bitmap = SKBitmap.Decode(data);
+            var stateDir = Path.GetDirectoryName(filePath) ?? Environment.CurrentDirectory;
+            var path = Path.IsPathRooted(state.ImagePath) ? state.ImagePath : Path.Combine(stateDir, state.ImagePath);
+            if (File.Exists(path))
+            {
+                LoadImage(path);
+            }
         }
 
         if (state?.Shapes is { Count: > 0 })
@@ -155,6 +167,7 @@ public sealed class SkiaImageEditorControl : UserControl
         foreach (var shape in _shapes)
         {
             DrawShape(canvas, shape, shape == _selected, shape == _hovered);
+            DrawRegionLabel(canvas, shape);
         }
 
         if (_drawing is not null)
@@ -221,6 +234,19 @@ public sealed class SkiaImageEditorControl : UserControl
         canvas.DrawPath(path, stroke);
     }
 
+    private void DrawRegionLabel(SKCanvas canvas, ShapeModel shape)
+    {
+        var text = string.IsNullOrWhiteSpace(shape.RegionName) ? "未分配" : shape.RegionName;
+        var labelRect = GetRegionLabelRect(shape, text);
+        if (labelRect is null) return;
+
+        using var bg = new SKPaint { Color = SKColors.Black.WithAlpha(130), Style = SKPaintStyle.Fill, IsAntialias = true };
+        using var textPaint = new SKPaint { Color = SKColors.White, IsAntialias = true, TextSize = 14f / _zoom };
+        var padding = 4f / _zoom;
+        canvas.DrawRoundRect(labelRect.Value, 3f / _zoom, 3f / _zoom, bg);
+        canvas.DrawText(text, labelRect.Value.Left + padding, labelRect.Value.Bottom - 6f / _zoom, textPaint);
+    }
+
     private void OnMouseWheel(object sender, MouseWheelEventArgs e)
     {
         var old = _zoom;
@@ -251,6 +277,21 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             _draftPolygonMenu.IsOpen = true;
             return;
+        }
+
+        if (e.ChangedButton == MouseButton.Right)
+        {
+            var shapeAtLabel = HitTestRegionLabel(p);
+            if (shapeAtLabel is not null)
+            {
+                var dialog = new RegionEditDialog(shapeAtLabel.RegionName) { Owner = Window.GetWindow(this) };
+                if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.RegionName))
+                {
+                    shapeAtLabel.RegionName = dialog.RegionName;
+                    Redraw();
+                }
+                return;
+            }
         }
 
         if (e.ChangedButton == MouseButton.Right && _selected is not null)
@@ -521,6 +562,34 @@ public sealed class SkiaImageEditorControl : UserControl
         }
 
         return false;
+    }
+
+    private ShapeModel? HitTestRegionLabel(SKPoint p)
+    {
+        for (var i = _shapes.Count - 1; i >= 0; i--)
+        {
+            var text = string.IsNullOrWhiteSpace(_shapes[i].RegionName) ? "未分配" : _shapes[i].RegionName;
+            var rect = GetRegionLabelRect(_shapes[i], text);
+            if (rect is SKRect r && r.Contains(p))
+            {
+                return _shapes[i];
+            }
+        }
+
+        return null;
+    }
+
+    private SKRect? GetRegionLabelRect(ShapeModel shape, string text)
+    {
+        using var path = shape.ToPath();
+        var bounds = path.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return null;
+
+        using var textPaint = new SKPaint { TextSize = 14f / _zoom };
+        var textWidth = textPaint.MeasureText(text);
+        var padding = 4f / _zoom;
+        var labelHeight = 20f / _zoom;
+        return new SKRect(bounds.Left, bounds.Top - labelHeight - 2f / _zoom, bounds.Left + textWidth + padding * 2, bounds.Top - 2f / _zoom);
     }
 
     private void ResizeShapeByHandle(ShapeModel shape, EditHandle handle, SKPoint p)

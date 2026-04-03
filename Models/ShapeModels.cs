@@ -18,6 +18,7 @@ public sealed class ShapeModel
     public string StrokeColor { get; set; } = "#FF00FF00";
     public string FillColor { get; set; } = "#5500FF00";
     public bool IsFillTransparent { get; set; } = true;
+    public string RegionName { get; set; } = "未分配";
 
     public SKColor GetStrokeColor() => SKColor.Parse(StrokeColor);
     public SKColor GetFillColor() => SKColor.Parse(FillColor);
@@ -72,6 +73,6 @@ public sealed class ShapeModel
 
 public sealed class CanvasState
 {
-    public string? ImageBase64 { get; set; }
+    public string? ImagePath { get; set; }
     public List<ShapeModel> Shapes { get; set; } = new();
 }
