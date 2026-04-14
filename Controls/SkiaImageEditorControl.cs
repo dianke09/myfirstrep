@@ -10,6 +10,8 @@ using Myfirstrep.Models;
 using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using SkiaSharp.Views.WPF;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Myfirstrep.Controls;
 
@@ -94,8 +96,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
     public void LoadImage(string path)
     {
-        using var stream = File.OpenRead(path);
-        _bitmap = SKBitmap.Decode(stream);
+        _bitmap = LoadBitmapWithDepthSupport(path);
         _imageFilePath = path;
         Redraw();
     }
@@ -708,11 +709,65 @@ public sealed class SkiaImageEditorControl : UserControl
 
     public void ShowLoadImageDialog()
     {
-        var d = new OpenFileDialog { Filter = "Image Files|*.png;*.jpg;*.jpeg;*.bmp" };
+        var d = new OpenFileDialog { Filter = "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff" };
         if (d.ShowDialog() == true)
         {
             LoadImage(d.FileName);
         }
+    }
+
+    private static SKBitmap LoadBitmapWithDepthSupport(string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        if (ext is ".tif" or ".tiff")
+        {
+            try
+            {
+                using var depth = SixLabors.ImageSharp.Image.Load<L16>(path);
+                return Convert16BitDepthToBitmap(depth);
+            }
+            catch
+            {
+                // Fallback for non-L16 TIFF variants.
+            }
+        }
+
+        using var stream = File.OpenRead(path);
+        return SKBitmap.Decode(stream);
+    }
+
+    private static SKBitmap Convert16BitDepthToBitmap(Image<L16> depth)
+    {
+        var width = depth.Width;
+        var height = depth.Height;
+        var min = ushort.MaxValue;
+        var max = ushort.MinValue;
+
+        for (var y = 0; y < height; y++)
+        {
+            var row = depth.GetPixelRowSpan(y);
+            for (var x = 0; x < width; x++)
+            {
+                var v = row[x].PackedValue;
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+
+        var range = Math.Max(1, max - min);
+        var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Opaque);
+        for (var y = 0; y < height; y++)
+        {
+            var row = depth.GetPixelRowSpan(y);
+            for (var x = 0; x < width; x++)
+            {
+                var v = row[x].PackedValue;
+                var gray = (byte)(((v - min) * 255) / range);
+                bitmap.SetPixel(x, y, new SKColor(gray, gray, gray));
+            }
+        }
+
+        return bitmap;
     }
 
     public void ShowSaveStateDialog()
