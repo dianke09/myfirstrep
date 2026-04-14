@@ -1,2 +1,38 @@
-# myfirstrep
-测试
+# WPF + .NET 6 Skia 图像显示/标注控件
+
+该示例实现了基于 **SkiaSharp (SkiaWindow/Skia Surface 思路)** 的图像显示与几何图形标注控件，满足：
+
+1. 加载显示图像。
+2. 支持手动画矩形、圆形、多边形；也支持通过代码 `AddShape` 传入坐标直接显示；支持线宽、颜色、透明填充。
+3. 支持滚轮以当前光标为中心缩放，并支持 `Ctrl + 鼠标左键拖拽` 平移整个画布。
+4. 支持保存/加载当前图片与几何图形（JSON 仅保存图片路径；保存时会将图片复制到 JSON 同目录并写入相对路径）。
+5. 控件核心为 `SkiaImageEditorControl`，使用 `SKElement`（Skia WPF 视图）。
+6. 全部绘制由 Skia 完成，无 GDI+。
+7. 单击可选中单个图形，选中后仅用鼠标左键即可拖拽移动图形（光标需落在图形内），右键弹出选中图形操作菜单（删除）。
+8. 鼠标移入/移出图形时带透明蒙层填充高亮。
+9. 双击画布可让图片自适应控件窗口。
+10. 多边形绘制时显示已绘制边与“当前鼠标位置”的正在绘制边；可在最后一点双击闭合，或点击首点手动闭合。
+11. 图形编辑：圆形可拖拽半径点调半径；矩形可拖拽 4 边/4 顶点调尺寸；多边形可拖拽顶点调形状，并可点击边上非顶点位置新增顶点。
+12. 多边形绘制时实时显示顶点；顶点色、边线色和顶点半径可通过控件属性配置。
+13. 多边形绘制未闭合时右键弹出菜单供用户选择“取消当前多边形绘制”；鼠标移动到图形顶点时自动变为手型，移开恢复箭头。
+14. 每个图形有“归属区域”属性，会在图形包围框上方显示半透明标签；右键点击标签可弹出编辑窗并实时更新显示。
+15. RegionName 标签字体为“微软雅黑（Microsoft YaHei）”；JSON 以 UTF-8 写入并支持中文字符直写。
+16. 支持加载 16 位深度 TIFF（`.tif/.tiff`）并自动做深度归一化显示（基于 OpenCvSharp）。
+17. 大图（含 TIFF）渲染时仅绘制当前视口可见区域，缩放/平移交互更流畅。
+18. 控件右键菜单支持：加载图片、切换 Select/Pan/Rectangle/Circle/Polygon 模式，以及删除当前选中图形。
+
+## 主要文件
+
+- `Controls/SkiaImageEditorControl.cs`：控件核心，含渲染、交互、命中测试、保存加载。
+- `Models/ShapeModels.cs`：图形模型和状态模型。
+  - 模型采用继承结构：`ShapeModel` 基类 + `RectangleShapeModel` / `CircleShapeModel` / `PolygonShapeModel` 子类。
+- `MainWindow.xaml` + `MainWindow.xaml.cs`：演示窗口与工具栏。
+
+## 运行
+
+```bash
+dotnet restore
+dotnet run
+```
+
+> 注意：这是 `net6.0-windows` WPF 项目，请在 Windows 环境运行。
