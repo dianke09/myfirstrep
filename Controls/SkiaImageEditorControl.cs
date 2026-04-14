@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -760,28 +761,25 @@ public sealed class SkiaImageEditorControl : UserControl
 
         using (display)
         {
-            var bitmap = new SKBitmap(display.Width, display.Height, SKColorType.Bgra8888, SKAlphaType.Opaque);
-            for (var y = 0; y < display.Height; y++)
+            using var bgra = new Mat();
+            if (display.Channels() == 1)
             {
-                for (var x = 0; x < display.Width; x++)
-                {
-                    switch (display.Channels())
-                    {
-                        case 1:
-                            var g = display.At<byte>(y, x);
-                            bitmap.SetPixel(x, y, new SKColor(g, g, g));
-                            break;
-                        case 3:
-                            var bgr = display.At<Vec3b>(y, x);
-                            bitmap.SetPixel(x, y, new SKColor(bgr.Item2, bgr.Item1, bgr.Item0));
-                            break;
-                        default:
-                            var bgra = display.At<Vec4b>(y, x);
-                            bitmap.SetPixel(x, y, new SKColor(bgra.Item2, bgra.Item1, bgra.Item0, bgra.Item3));
-                            break;
-                    }
-                }
+                Cv2.CvtColor(display, bgra, ColorConversionCodes.GRAY2BGRA);
             }
+            else if (display.Channels() == 3)
+            {
+                Cv2.CvtColor(display, bgra, ColorConversionCodes.BGR2BGRA);
+            }
+            else
+            {
+                display.CopyTo(bgra);
+            }
+
+            var bitmap = new SKBitmap(bgra.Width, bgra.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+            var totalBytes = (int)(bgra.Total() * bgra.ElemSize());
+            var buffer = new byte[totalBytes];
+            Marshal.Copy(bgra.Data, buffer, 0, totalBytes);
+            Marshal.Copy(buffer, 0, bitmap.GetPixels(), totalBytes);
             return bitmap;
         }
     }
