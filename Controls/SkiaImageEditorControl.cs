@@ -48,6 +48,7 @@ public sealed class SkiaImageEditorControl : UserControl
     private SKPoint? _polygonHoverPoint;
     private EditHandle? _activeHandle;
     private readonly ContextMenu _draftPolygonMenu;
+    private readonly ContextMenu _mainMenu;
     public SKColor PolygonEdgeColor { get; set; } = SKColors.Orange;
     public SKColor PolygonVertexColor { get; set; } = SKColors.DeepSkyBlue;
     public float PolygonVertexRadius { get; set; } = 4f;
@@ -63,7 +64,37 @@ public sealed class SkiaImageEditorControl : UserControl
         _surface.Focusable = true;
         _surface.KeyDown += OnKeyDown;
 
-        var deleteMenu = new MenuItem { Header = "删除选中图形" };
+        _mainMenu = new ContextMenu();
+
+        var loadImageMenu = new MenuItem { Header = "加载图片" };
+        loadImageMenu.Click += (_, _) => ShowLoadImageDialog();
+        _mainMenu.Items.Add(loadImageMenu);
+
+        _mainMenu.Items.Add(new Separator());
+
+        var selectMenu = new MenuItem { Header = "切换到选择模式" };
+        selectMenu.Click += (_, _) => SetTool(EditorTool.Select);
+        _mainMenu.Items.Add(selectMenu);
+
+        var panMenu = new MenuItem { Header = "切换到平移模式" };
+        panMenu.Click += (_, _) => SetTool(EditorTool.Pan);
+        _mainMenu.Items.Add(panMenu);
+
+        var rectangleMenu = new MenuItem { Header = "切换到矩形模式" };
+        rectangleMenu.Click += (_, _) => SetTool(EditorTool.Rectangle);
+        _mainMenu.Items.Add(rectangleMenu);
+
+        var circleMenu = new MenuItem { Header = "切换到圆形模式" };
+        circleMenu.Click += (_, _) => SetTool(EditorTool.Circle);
+        _mainMenu.Items.Add(circleMenu);
+
+        var polygonMenu = new MenuItem { Header = "切换到多边形模式" };
+        polygonMenu.Click += (_, _) => SetTool(EditorTool.Polygon);
+        _mainMenu.Items.Add(polygonMenu);
+
+        _mainMenu.Items.Add(new Separator());
+
+        var deleteMenu = new MenuItem { Header = "删除选中图形", Name = "DeleteSelectedShapeMenu" };
         deleteMenu.Click += (_, _) =>
         {
             if (_selected is null) return;
@@ -71,9 +102,9 @@ public sealed class SkiaImageEditorControl : UserControl
             _selected = null;
             Redraw();
         };
+        _mainMenu.Items.Add(deleteMenu);
 
-        ContextMenu = new ContextMenu();
-        ContextMenu.Items.Add(deleteMenu);
+        ContextMenu = _mainMenu;
 
         var cancelDraftMenu = new MenuItem { Header = "取消当前多边形绘制" };
         cancelDraftMenu.Click += (_, _) =>
@@ -337,7 +368,13 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (e.ChangedButton == MouseButton.Right && _selected is not null)
         {
-            ContextMenu!.IsOpen = true;
+            OpenMainMenu();
+            return;
+        }
+
+        if (e.ChangedButton == MouseButton.Right)
+        {
+            OpenMainMenu();
             return;
         }
 
@@ -733,6 +770,19 @@ public sealed class SkiaImageEditorControl : UserControl
     }
 
     private void Redraw() => _surface.InvalidateVisual();
+
+    private void OpenMainMenu()
+    {
+        foreach (var item in _mainMenu.Items)
+        {
+            if (item is MenuItem menu && menu.Name == "DeleteSelectedShapeMenu")
+            {
+                menu.IsEnabled = _selected is not null;
+                break;
+            }
+        }
+        _mainMenu.IsOpen = true;
+    }
 
     public void ShowLoadImageDialog()
     {

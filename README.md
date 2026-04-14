@@ -19,6 +19,7 @@
 15. RegionName 标签字体为“微软雅黑（Microsoft YaHei）”；JSON 以 UTF-8 写入并支持中文字符直写。
 16. 支持加载 16 位深度 TIFF（`.tif/.tiff`）并自动做深度归一化显示（基于 OpenCvSharp）。
 17. 大图（含 TIFF）渲染时仅绘制当前视口可见区域，缩放/平移交互更流畅。
+18. 控件右键菜单支持：加载图片、切换 Select/Pan/Rectangle/Circle/Polygon 模式，以及删除当前选中图形。
 
 ## 主要文件
 
