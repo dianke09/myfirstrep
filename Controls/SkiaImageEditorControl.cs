@@ -169,7 +169,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_bitmap is not null)
         {
-            canvas.DrawBitmap(_bitmap, 0, 0);
+            DrawVisibleBitmapOnly(canvas, e.Info.Width, e.Info.Height);
         }
 
         foreach (var shape in _shapes)
@@ -240,6 +240,33 @@ public sealed class SkiaImageEditorControl : UserControl
         }
 
         canvas.DrawPath(path, stroke);
+    }
+
+    private void DrawVisibleBitmapOnly(SKCanvas canvas, int viewportWidth, int viewportHeight)
+    {
+        if (_bitmap is null) return;
+
+        var worldLeft = (-_pan.X) / _zoom;
+        var worldTop = (-_pan.Y) / _zoom;
+        var worldRight = (viewportWidth - _pan.X) / _zoom;
+        var worldBottom = (viewportHeight - _pan.Y) / _zoom;
+
+        var src = SKRect.Intersect(
+            new SKRect(worldLeft, worldTop, worldRight, worldBottom),
+            new SKRect(0, 0, _bitmap.Width, _bitmap.Height));
+
+        if (src.Width <= 0 || src.Height <= 0)
+        {
+            return;
+        }
+
+        using var paint = new SKPaint
+        {
+            IsAntialias = false,
+            FilterQuality = SKFilterQuality.Low
+        };
+        // canvas 已设置世界坐标矩阵，因此目标矩形与源矩形同坐标系即可。
+        canvas.DrawBitmap(_bitmap, src, src, paint);
     }
 
     private void DrawRegionLabel(SKCanvas canvas, ShapeModel shape)
