@@ -740,12 +740,13 @@ public sealed class SkiaImageEditorControl : UserControl
     {
         var width = depth.Width;
         var height = depth.Height;
+        var frame = depth.Frames.RootFrame;
         var min = ushort.MaxValue;
         var max = ushort.MinValue;
 
         for (var y = 0; y < height; y++)
         {
-            var row = depth.GetPixelRowSpan(y);
+            var row = frame.GetPixelRowSpan(y);
             for (var x = 0; x < width; x++)
             {
                 var v = row[x].PackedValue;
@@ -758,7 +759,7 @@ public sealed class SkiaImageEditorControl : UserControl
         var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Opaque);
         for (var y = 0; y < height; y++)
         {
-            var row = depth.GetPixelRowSpan(y);
+            var row = frame.GetPixelRowSpan(y);
             for (var x = 0; x < width; x++)
             {
                 var v = row[x].PackedValue;
