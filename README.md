@@ -25,6 +25,7 @@
 
 - `Controls/SkiaImageEditorControl.cs`：控件核心，含渲染、交互、命中测试、保存加载。
 - `Models/ShapeModels.cs`：图形模型和状态模型。
+  - 模型采用继承结构：`ShapeModel` 基类 + `RectangleShapeModel` / `CircleShapeModel` / `PolygonShapeModel` 子类。
 - `MainWindow.xaml` + `MainWindow.xaml.cs`：演示窗口与工具栏。
 
 ## 运行

@@ -408,11 +408,8 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_tool == EditorTool.Rectangle || _tool == EditorTool.Circle)
         {
-            _drawing = new ShapeModel
-            {
-                Type = _tool == EditorTool.Rectangle ? ShapeType.Rectangle : ShapeType.Circle,
-                Points = new List<SKPoint> { p, p }
-            };
+            _drawing = _tool == EditorTool.Rectangle ? new RectangleShapeModel() : new CircleShapeModel();
+            _drawing.Points = new List<SKPoint> { p, p };
             return;
         }
 
@@ -424,7 +421,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
             if (canCloseByDoubleClick || canCloseByManualConnect)
             {
-                _shapes.Add(new ShapeModel { Type = ShapeType.Polygon, Points = new List<SKPoint>(_polygonBuffer) });
+                _shapes.Add(new PolygonShapeModel { Points = new List<SKPoint>(_polygonBuffer) });
                 _polygonBuffer.Clear();
                 _polygonHoverPoint = null;
             }
@@ -528,7 +525,7 @@ public sealed class SkiaImageEditorControl : UserControl
     {
         if (e.Key == Key.Enter && _tool == EditorTool.Polygon && _polygonBuffer.Count >= 3)
         {
-            _shapes.Add(new ShapeModel { Type = ShapeType.Polygon, Points = new List<SKPoint>(_polygonBuffer) });
+            _shapes.Add(new PolygonShapeModel { Points = new List<SKPoint>(_polygonBuffer) });
             _polygonBuffer.Clear();
             _polygonHoverPoint = null;
             Redraw();
