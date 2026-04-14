@@ -7,11 +7,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using Myfirstrep.Models;
+using OpenCvSharp;
 using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using SkiaSharp.Views.WPF;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 
 namespace Myfirstrep.Controls;
 
@@ -723,12 +722,11 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             try
             {
-                using var depth = SixLabors.ImageSharp.Image.Load<L16>(path);
-                return Convert16BitDepthToBitmap(depth);
+                return LoadTiffWithOpenCv(path);
             }
             catch
             {
-                // Fallback for non-L16 TIFF variants.
+                // Fallback for unexpected TIFF variants.
             }
         }
 
@@ -736,39 +734,56 @@ public sealed class SkiaImageEditorControl : UserControl
         return SKBitmap.Decode(stream);
     }
 
-    private static SKBitmap Convert16BitDepthToBitmap(Image<L16> depth)
+    private static SKBitmap LoadTiffWithOpenCv(string path)
     {
-        var width = depth.Width;
-        var height = depth.Height;
-        var frame = depth.Frames.RootFrame;
-        var min = ushort.MaxValue;
-        var max = ushort.MinValue;
-
-        for (var y = 0; y < height; y++)
+        using var mat = Cv2.ImRead(path, ImreadModes.Unchanged);
+        if (mat.Empty())
         {
-            var row = frame.GetPixelRowSpan(y);
-            for (var x = 0; x < width; x++)
-            {
-                var v = row[x].PackedValue;
-                if (v < min) min = v;
-                if (v > max) max = v;
-            }
+            throw new InvalidOperationException("无法读取TIFF图像。");
         }
 
-        var range = Math.Max(1, max - min);
-        var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Opaque);
-        for (var y = 0; y < height; y++)
+        Mat display;
+        if (mat.Type().Depth == MatType.CV_16U)
         {
-            var row = frame.GetPixelRowSpan(y);
-            for (var x = 0; x < width; x++)
-            {
-                var v = row[x].PackedValue;
-                var gray = (byte)(((v - min) * 255) / range);
-                bitmap.SetPixel(x, y, new SKColor(gray, gray, gray));
-            }
+            display = new Mat();
+            Cv2.Normalize(mat, display, 0, 255, NormTypes.MinMax, MatType.CV_8U);
+        }
+        else if (mat.Type().Depth == MatType.CV_8U)
+        {
+            display = mat.Clone();
+        }
+        else
+        {
+            display = new Mat();
+            mat.ConvertTo(display, MatType.CV_8U);
         }
 
-        return bitmap;
+        using (display)
+        {
+            var bitmap = new SKBitmap(display.Width, display.Height, SKColorType.Bgra8888, SKAlphaType.Opaque);
+            for (var y = 0; y < display.Height; y++)
+            {
+                for (var x = 0; x < display.Width; x++)
+                {
+                    switch (display.Channels())
+                    {
+                        case 1:
+                            var g = display.At<byte>(y, x);
+                            bitmap.SetPixel(x, y, new SKColor(g, g, g));
+                            break;
+                        case 3:
+                            var bgr = display.At<Vec3b>(y, x);
+                            bitmap.SetPixel(x, y, new SKColor(bgr.Item2, bgr.Item1, bgr.Item0));
+                            break;
+                        default:
+                            var bgra = display.At<Vec4b>(y, x);
+                            bitmap.SetPixel(x, y, new SKColor(bgra.Item2, bgra.Item1, bgra.Item0, bgra.Item3));
+                            break;
+                    }
+                }
+            }
+            return bitmap;
+        }
     }
 
     public void ShowSaveStateDialog()
