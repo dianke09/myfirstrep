@@ -28,9 +28,8 @@ public partial class MainWindow : Window
 
     private void AddDemoShape_Click(object sender, RoutedEventArgs e)
     {
-        _editor.AddShape(new ShapeModel
+        _editor.AddShape(new PolygonShapeModel
         {
-            Type = ShapeType.Polygon,
             StrokeWidth = 3,
             StrokeColor = "#FFFF0000",
             FillColor = "#55FF0000",
