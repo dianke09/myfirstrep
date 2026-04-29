@@ -6,8 +6,10 @@ namespace Myfirstrep.Models;
 public enum ShapeType
 {
     Rectangle,
+    RotatedRectangle,
     Circle,
-    Polygon
+    Polygon,
+    CrossPoint
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$shape")]
@@ -39,30 +41,57 @@ public sealed class RectangleShapeModel : ShapeModel
         var path = new SKPath();
         if (Points.Count >= 2)
         {
-            var r = SKRect.Create(
-                Math.Min(Points[0].X, Points[1].X),
-                Math.Min(Points[0].Y, Points[1].Y),
-                Math.Abs(Points[1].X - Points[0].X),
-                Math.Abs(Points[1].Y - Points[0].Y));
-            path.AddRect(r);
-        }
-
-        return path;
-    }
-}
-
-public sealed class CircleShapeModel : ShapeModel
-{
-    public override ShapeType Type => ShapeType.Circle;
-
-    public override SKPath ToPath()
-    {
-        var path = new SKPath();
-        if (Points.Count >= 2)
-        {
-            var center = Points[0];
-            var radius = Distance(center, Points[1]);
-            path.AddCircle(center.X, center.Y, radius);
+            case ShapeType.Rectangle:
+                if (Points.Count >= 2)
+                {
+                    var r = SKRect.Create(
+                        Math.Min(Points[0].X, Points[1].X),
+                        Math.Min(Points[0].Y, Points[1].Y),
+                        Math.Abs(Points[1].X - Points[0].X),
+                        Math.Abs(Points[1].Y - Points[0].Y));
+                    path.AddRect(r);
+                }
+                break;
+            case ShapeType.Circle:
+                if (Points.Count >= 2)
+                {
+                    var center = Points[0];
+                    var radius = Distance(center, Points[1]);
+                    path.AddCircle(center.X, center.Y, radius);
+                }
+                break;
+            case ShapeType.RotatedRectangle:
+                if (Points.Count >= 4)
+                {
+                    path.MoveTo(Points[0]);
+                    path.LineTo(Points[1]);
+                    path.LineTo(Points[2]);
+                    path.LineTo(Points[3]);
+                    path.Close();
+                }
+                break;
+            case ShapeType.Polygon:
+                if (Points.Count >= 3)
+                {
+                    path.MoveTo(Points[0]);
+                    for (var i = 1; i < Points.Count; i++)
+                    {
+                        path.LineTo(Points[i]);
+                    }
+                    path.Close();
+                }
+                break;
+            case ShapeType.CrossPoint:
+                if (Points.Count >= 1)
+                {
+                    var p = Points[0];
+                    var size = 8f;
+                    path.MoveTo(p.X - size, p.Y);
+                    path.LineTo(p.X + size, p.Y);
+                    path.MoveTo(p.X, p.Y - size);
+                    path.LineTo(p.X, p.Y + size);
+                }
+                break;
         }
 
         return path;
