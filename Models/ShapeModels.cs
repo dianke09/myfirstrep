@@ -5,8 +5,10 @@ namespace Myfirstrep.Models;
 public enum ShapeType
 {
     Rectangle,
+    RotatedRectangle,
     Circle,
-    Polygon
+    Polygon,
+    CrossPoint
 }
 
 public sealed class ShapeModel
@@ -47,6 +49,16 @@ public sealed class ShapeModel
                     path.AddCircle(center.X, center.Y, radius);
                 }
                 break;
+            case ShapeType.RotatedRectangle:
+                if (Points.Count >= 4)
+                {
+                    path.MoveTo(Points[0]);
+                    path.LineTo(Points[1]);
+                    path.LineTo(Points[2]);
+                    path.LineTo(Points[3]);
+                    path.Close();
+                }
+                break;
             case ShapeType.Polygon:
                 if (Points.Count >= 3)
                 {
@@ -56,6 +68,17 @@ public sealed class ShapeModel
                         path.LineTo(Points[i]);
                     }
                     path.Close();
+                }
+                break;
+            case ShapeType.CrossPoint:
+                if (Points.Count >= 1)
+                {
+                    var p = Points[0];
+                    var size = 8f;
+                    path.MoveTo(p.X - size, p.Y);
+                    path.LineTo(p.X + size, p.Y);
+                    path.MoveTo(p.X, p.Y - size);
+                    path.LineTo(p.X, p.Y + size);
                 }
                 break;
         }
