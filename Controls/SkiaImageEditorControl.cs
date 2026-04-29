@@ -40,6 +40,7 @@ public sealed class SkiaImageEditorControl : UserControl
     private ShapeModel? _selected;
     private ShapeModel? _hovered;
     private ShapeModel? _drawing;
+    private SKPoint? _drawingStartPoint;
     private EditorTool _tool = EditorTool.Select;
     private bool _isCanvasPanning;
     private bool _isShapeDragging;
@@ -374,12 +375,6 @@ public sealed class SkiaImageEditorControl : UserControl
             return;
         }
 
-        if (e.ChangedButton == MouseButton.Right)
-        {
-            OpenMainMenu();
-            return;
-        }
-
         var isLeftPress = e.ChangedButton == MouseButton.Left && e.LeftButton == MouseButtonState.Pressed;
         if ((_tool == EditorTool.Pan || Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) && isLeftPress)
         {
@@ -389,6 +384,13 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_tool == EditorTool.Select)
         {
+            if (_selected?.Type == ShapeType.RotatedRectangle && e.LeftButton == MouseButtonState.Pressed &&
+                IsOnRotationHandle(_selected, p))
+            {
+                _isShapeRotating = true;
+                return;
+            }
+
             _selected = HitTest(p);
             if (_selected is not null && e.LeftButton == MouseButtonState.Pressed)
             {
@@ -418,6 +420,7 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             var shapeType = _tool == EditorTool.Rectangle ? ShapeType.Rectangle :
                             _tool == EditorTool.Circle ? ShapeType.Circle : ShapeType.RotatedRectangle;
+            _drawingStartPoint = p;
             _drawing = new ShapeModel
             {
                 Type = shapeType,
@@ -497,9 +500,9 @@ public sealed class SkiaImageEditorControl : UserControl
         if (_drawing is not null)
         {
             _drawing.Points[1] = p;
-            if (_drawing.Type == ShapeType.RotatedRectangle)
+            if (_drawing.Type == ShapeType.RotatedRectangle && _drawingStartPoint is SKPoint startPoint)
             {
-                _drawing.Points = CreateAxisAlignedRotatedRectanglePoints(_drawing.Points[0], _drawing.Points[1]);
+                _drawing.Points = CreateAxisAlignedRotatedRectanglePoints(startPoint, p);
             }
             Redraw();
             return;
@@ -549,6 +552,7 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             _shapes.Add(_drawing);
             _drawing = null;
+            _drawingStartPoint = null;
             Redraw();
         }
     }
@@ -731,6 +735,12 @@ public sealed class SkiaImageEditorControl : UserControl
             return;
         }
 
+        if (shape.Type == ShapeType.RotatedRectangle && shape.Points.Count >= 4)
+        {
+            ResizeRotatedRectangleByCorner(shape, handle.Index, p);
+            return;
+        }
+
         if (shape.Type == ShapeType.CrossPoint && shape.Points.Count >= 1)
         {
             shape.Points[0] = p;
@@ -795,6 +805,49 @@ public sealed class SkiaImageEditorControl : UserControl
         return MathF.Sqrt(dx * dx + dy * dy);
     }
 
+    private static void ResizeRotatedRectangleByCorner(ShapeModel shape, int cornerIndex, SKPoint movedCorner)
+    {
+        if (cornerIndex is < 0 or > 3) return;
+        var oppositeIndex = (cornerIndex + 2) % 4;
+        var opposite = shape.Points[oppositeIndex];
+        var center = new SKPoint((movedCorner.X + opposite.X) / 2f, (movedCorner.Y + opposite.Y) / 2f);
+
+        var edge = new SKPoint(shape.Points[1].X - shape.Points[0].X, shape.Points[1].Y - shape.Points[0].Y);
+        var edgeLen = MathF.Sqrt(edge.X * edge.X + edge.Y * edge.Y);
+        if (edgeLen < 1e-4f)
+        {
+            edge = new SKPoint(1f, 0f);
+            edgeLen = 1f;
+        }
+        var ux = edge.X / edgeLen;
+        var uy = edge.Y / edgeLen;
+        var vx = -uy;
+        var vy = ux;
+
+        var signs = new (float sx, float sy)[]
+        {
+            (-1f, -1f), // 0
+            ( 1f, -1f), // 1
+            ( 1f,  1f), // 2
+            (-1f,  1f)  // 3
+        };
+
+        var sx = signs[cornerIndex].sx;
+        var sy = signs[cornerIndex].sy;
+        var dx = movedCorner.X - center.X;
+        var dy = movedCorner.Y - center.Y;
+
+        var halfWidth = Math.Max(0.5f, sx * (dx * ux + dy * uy));
+        var halfHeight = Math.Max(0.5f, sy * (dx * vx + dy * vy));
+
+        for (var i = 0; i < 4; i++)
+        {
+            var cornerX = center.X + signs[i].sx * halfWidth * ux + signs[i].sy * halfHeight * vx;
+            var cornerY = center.Y + signs[i].sx * halfWidth * uy + signs[i].sy * halfHeight * vy;
+            shape.Points[i] = new SKPoint(cornerX, cornerY);
+        }
+    }
+
     private static List<SKPoint> CreateAxisAlignedRotatedRectanglePoints(SKPoint start, SKPoint end)
     {
         var minX = Math.Min(start.X, end.X);
@@ -813,10 +866,15 @@ public sealed class SkiaImageEditorControl : UserControl
     private void DrawRotationHandle(SKCanvas canvas, ShapeModel shape)
     {
         var center = GetShapeCenter(shape);
-        var handle = new SKPoint(center.X, center.Y - 30f / _zoom);
+        var topMid = new SKPoint((shape.Points[0].X + shape.Points[1].X) / 2f, (shape.Points[0].Y + shape.Points[1].Y) / 2f);
+        var dir = new SKPoint(topMid.X - center.X, topMid.Y - center.Y);
+        var len = Math.Max(0.001f, Distance(center, topMid));
+        var nx = dir.X / len;
+        var ny = dir.Y / len;
+        var handle = new SKPoint(topMid.X + nx * (24f / _zoom), topMid.Y + ny * (24f / _zoom));
         using var line = new SKPaint { Color = SKColors.Cyan, StrokeWidth = 1.5f / _zoom, Style = SKPaintStyle.Stroke, IsAntialias = true };
         using var dot = new SKPaint { Color = SKColors.Cyan, Style = SKPaintStyle.Fill, IsAntialias = true };
-        canvas.DrawLine(center, handle, line);
+        canvas.DrawLine(topMid, handle, line);
         canvas.DrawCircle(handle, 5f / _zoom, dot);
     }
 
@@ -836,7 +894,12 @@ public sealed class SkiaImageEditorControl : UserControl
     {
         if (shape.Type != ShapeType.RotatedRectangle || shape.Points.Count < 4) return false;
         var center = GetShapeCenter(shape);
-        var handle = new SKPoint(center.X, center.Y - 30f / _zoom);
+        var topMid = new SKPoint((shape.Points[0].X + shape.Points[1].X) / 2f, (shape.Points[0].Y + shape.Points[1].Y) / 2f);
+        var dir = new SKPoint(topMid.X - center.X, topMid.Y - center.Y);
+        var len = Math.Max(0.001f, Distance(center, topMid));
+        var nx = dir.X / len;
+        var ny = dir.Y / len;
+        var handle = new SKPoint(topMid.X + nx * (24f / _zoom), topMid.Y + ny * (24f / _zoom));
         return Distance(handle, p) <= 10f / _zoom;
     }
 
@@ -844,9 +907,9 @@ public sealed class SkiaImageEditorControl : UserControl
     {
         if (shape.Type != ShapeType.RotatedRectangle || shape.Points.Count < 4) return;
         var center = GetShapeCenter(shape);
-        var basePoint = shape.Points[0];
-        var currentAngle = MathF.Atan2(basePoint.Y - center.Y, basePoint.X - center.X);
-        var targetAngle = MathF.Atan2(target.Y - center.Y, target.X - center.X);
+        var edge = new SKPoint(shape.Points[1].X - shape.Points[0].X, shape.Points[1].Y - shape.Points[0].Y);
+        var currentAngle = MathF.Atan2(edge.Y, edge.X);
+        var targetAngle = MathF.Atan2(target.Y - center.Y, target.X - center.X) + MathF.PI / 2f;
         var delta = targetAngle - currentAngle;
         for (var i = 0; i < shape.Points.Count; i++)
         {
