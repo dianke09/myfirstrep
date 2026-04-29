@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using SkiaSharp;
 
 namespace Myfirstrep.Models;
@@ -11,10 +12,14 @@ public enum ShapeType
     CrossPoint
 }
 
-public sealed class ShapeModel
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$shape")]
+[JsonDerivedType(typeof(RectangleShapeModel), typeDiscriminator: "rectangle")]
+[JsonDerivedType(typeof(CircleShapeModel), typeDiscriminator: "circle")]
+[JsonDerivedType(typeof(PolygonShapeModel), typeDiscriminator: "polygon")]
+public abstract class ShapeModel
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
-    public ShapeType Type { get; set; }
+    public abstract ShapeType Type { get; }
     public List<SKPoint> Points { get; set; } = new();
     public float StrokeWidth { get; set; } = 2f;
     public string StrokeColor { get; set; } = "#FF00FF00";
@@ -24,11 +29,17 @@ public sealed class ShapeModel
 
     public SKColor GetStrokeColor() => SKColor.Parse(StrokeColor);
     public SKColor GetFillColor() => SKColor.Parse(FillColor);
+    public abstract SKPath ToPath();
+}
 
-    public SKPath ToPath()
+public sealed class RectangleShapeModel : ShapeModel
+{
+    public override ShapeType Type => ShapeType.Rectangle;
+
+    public override SKPath ToPath()
     {
         var path = new SKPath();
-        switch (Type)
+        if (Points.Count >= 2)
         {
             case ShapeType.Rectangle:
                 if (Points.Count >= 2)
@@ -91,6 +102,27 @@ public sealed class ShapeModel
         var dx = a.X - b.X;
         var dy = a.Y - b.Y;
         return MathF.Sqrt(dx * dx + dy * dy);
+    }
+}
+
+public sealed class PolygonShapeModel : ShapeModel
+{
+    public override ShapeType Type => ShapeType.Polygon;
+
+    public override SKPath ToPath()
+    {
+        var path = new SKPath();
+        if (Points.Count >= 3)
+        {
+            path.MoveTo(Points[0]);
+            for (var i = 1; i < Points.Count; i++)
+            {
+                path.LineTo(Points[i]);
+            }
+            path.Close();
+        }
+
+        return path;
     }
 }
 
