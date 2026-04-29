@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -7,11 +8,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using Myfirstrep.Models;
+using OpenCvSharp;
 using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using SkiaSharp.Views.WPF;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 
 namespace Myfirstrep.Controls;
 
@@ -52,6 +52,7 @@ public sealed class SkiaImageEditorControl : UserControl
     private SKPoint? _polygonHoverPoint;
     private EditHandle? _activeHandle;
     private readonly ContextMenu _draftPolygonMenu;
+    private readonly ContextMenu _mainMenu;
     public SKColor PolygonEdgeColor { get; set; } = SKColors.Orange;
     public SKColor PolygonVertexColor { get; set; } = SKColors.DeepSkyBlue;
     public float PolygonVertexRadius { get; set; } = 4f;
@@ -67,7 +68,37 @@ public sealed class SkiaImageEditorControl : UserControl
         _surface.Focusable = true;
         _surface.KeyDown += OnKeyDown;
 
-        var deleteMenu = new MenuItem { Header = "删除选中图形" };
+        _mainMenu = new ContextMenu();
+
+        var loadImageMenu = new MenuItem { Header = "加载图片" };
+        loadImageMenu.Click += (_, _) => ShowLoadImageDialog();
+        _mainMenu.Items.Add(loadImageMenu);
+
+        _mainMenu.Items.Add(new Separator());
+
+        var selectMenu = new MenuItem { Header = "切换到选择模式" };
+        selectMenu.Click += (_, _) => SetTool(EditorTool.Select);
+        _mainMenu.Items.Add(selectMenu);
+
+        var panMenu = new MenuItem { Header = "切换到平移模式" };
+        panMenu.Click += (_, _) => SetTool(EditorTool.Pan);
+        _mainMenu.Items.Add(panMenu);
+
+        var rectangleMenu = new MenuItem { Header = "切换到矩形模式" };
+        rectangleMenu.Click += (_, _) => SetTool(EditorTool.Rectangle);
+        _mainMenu.Items.Add(rectangleMenu);
+
+        var circleMenu = new MenuItem { Header = "切换到圆形模式" };
+        circleMenu.Click += (_, _) => SetTool(EditorTool.Circle);
+        _mainMenu.Items.Add(circleMenu);
+
+        var polygonMenu = new MenuItem { Header = "切换到多边形模式" };
+        polygonMenu.Click += (_, _) => SetTool(EditorTool.Polygon);
+        _mainMenu.Items.Add(polygonMenu);
+
+        _mainMenu.Items.Add(new Separator());
+
+        var deleteMenu = new MenuItem { Header = "删除选中图形", Name = "DeleteSelectedShapeMenu" };
         deleteMenu.Click += (_, _) =>
         {
             if (_selected is null) return;
@@ -75,9 +106,9 @@ public sealed class SkiaImageEditorControl : UserControl
             _selected = null;
             Redraw();
         };
+        _mainMenu.Items.Add(deleteMenu);
 
-        ContextMenu = new ContextMenu();
-        ContextMenu.Items.Add(deleteMenu);
+        ContextMenu = _mainMenu;
 
         var cancelDraftMenu = new MenuItem { Header = "取消当前多边形绘制" };
         cancelDraftMenu.Click += (_, _) =>
@@ -173,7 +204,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_bitmap is not null)
         {
-            canvas.DrawBitmap(_bitmap, 0, 0);
+            DrawVisibleBitmapOnly(canvas, e.Info.Width, e.Info.Height);
         }
 
         foreach (var shape in _shapes)
@@ -340,7 +371,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (e.ChangedButton == MouseButton.Right && _selected is not null)
         {
-            ContextMenu!.IsOpen = true;
+            OpenMainMenu();
             return;
         }
 
@@ -413,7 +444,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
             if (canCloseByDoubleClick || canCloseByManualConnect)
             {
-                _shapes.Add(new ShapeModel { Type = ShapeType.Polygon, Points = new List<SKPoint>(_polygonBuffer) });
+                _shapes.Add(new PolygonShapeModel { Points = new List<SKPoint>(_polygonBuffer) });
                 _polygonBuffer.Clear();
                 _polygonHoverPoint = null;
             }
@@ -530,7 +561,7 @@ public sealed class SkiaImageEditorControl : UserControl
     {
         if (e.Key == Key.Enter && _tool == EditorTool.Polygon && _polygonBuffer.Count >= 3)
         {
-            _shapes.Add(new ShapeModel { Type = ShapeType.Polygon, Points = new List<SKPoint>(_polygonBuffer) });
+            _shapes.Add(new PolygonShapeModel { Points = new List<SKPoint>(_polygonBuffer) });
             _polygonBuffer.Clear();
             _polygonHoverPoint = null;
             Redraw();
@@ -695,7 +726,7 @@ public sealed class SkiaImageEditorControl : UserControl
             return;
         }
 
-        if (shape.Type == ShapeType.Polygon)
+        if (shape.Type == ShapeType.Polygon || shape.Type == ShapeType.RotatedRectangle)
         {
             if (handle.Index >= 0 && handle.Index < shape.Points.Count)
             {
@@ -911,6 +942,19 @@ public sealed class SkiaImageEditorControl : UserControl
 
     private void Redraw() => _surface.InvalidateVisual();
 
+    private void OpenMainMenu()
+    {
+        foreach (var item in _mainMenu.Items)
+        {
+            if (item is MenuItem menu && menu.Name == "DeleteSelectedShapeMenu")
+            {
+                menu.IsEnabled = _selected is not null;
+                break;
+            }
+        }
+        _mainMenu.IsOpen = true;
+    }
+
     public void ShowLoadImageDialog()
     {
         var d = new OpenFileDialog { Filter = "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff" };
@@ -927,12 +971,11 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             try
             {
-                using var depth = SixLabors.ImageSharp.Image.Load<L16>(path);
-                return Convert16BitDepthToBitmap(depth);
+                return LoadTiffWithOpenCv(path);
             }
             catch
             {
-                // Fallback for non-L16 TIFF variants.
+                // Fallback for unexpected TIFF variants.
             }
         }
 
@@ -940,39 +983,53 @@ public sealed class SkiaImageEditorControl : UserControl
         return SKBitmap.Decode(stream);
     }
 
-    private static SKBitmap Convert16BitDepthToBitmap(Image<L16> depth)
+    private static SKBitmap LoadTiffWithOpenCv(string path)
     {
-        var width = depth.Width;
-        var height = depth.Height;
-        var frame = depth.Frames.RootFrame;
-        var min = ushort.MaxValue;
-        var max = ushort.MinValue;
-
-        for (var y = 0; y < height; y++)
+        using var mat = Cv2.ImRead(path, ImreadModes.Unchanged);
+        if (mat.Empty())
         {
-            var row = frame.GetPixelRowSpan(y);
-            for (var x = 0; x < width; x++)
-            {
-                var v = row[x].PackedValue;
-                if (v < min) min = v;
-                if (v > max) max = v;
-            }
+            throw new InvalidOperationException("无法读取TIFF图像。");
         }
 
-        var range = Math.Max(1, max - min);
-        var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Opaque);
-        for (var y = 0; y < height; y++)
+        Mat display;
+        if (mat.Type().Depth == MatType.CV_16U)
         {
-            var row = frame.GetPixelRowSpan(y);
-            for (var x = 0; x < width; x++)
-            {
-                var v = row[x].PackedValue;
-                var gray = (byte)(((v - min) * 255) / range);
-                bitmap.SetPixel(x, y, new SKColor(gray, gray, gray));
-            }
+            display = new Mat();
+            Cv2.Normalize(mat, display, 0, 255, NormTypes.MinMax, MatType.CV_8U);
+        }
+        else if (mat.Type().Depth == MatType.CV_8U)
+        {
+            display = mat.Clone();
+        }
+        else
+        {
+            display = new Mat();
+            mat.ConvertTo(display, MatType.CV_8U);
         }
 
-        return bitmap;
+        using (display)
+        {
+            using var bgra = new Mat();
+            if (display.Channels() == 1)
+            {
+                Cv2.CvtColor(display, bgra, ColorConversionCodes.GRAY2BGRA);
+            }
+            else if (display.Channels() == 3)
+            {
+                Cv2.CvtColor(display, bgra, ColorConversionCodes.BGR2BGRA);
+            }
+            else
+            {
+                display.CopyTo(bgra);
+            }
+
+            var bitmap = new SKBitmap(bgra.Width, bgra.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+            var totalBytes = (int)(bgra.Total() * bgra.ElemSize());
+            var buffer = new byte[totalBytes];
+            Marshal.Copy(bgra.Data, buffer, 0, totalBytes);
+            Marshal.Copy(buffer, 0, bitmap.GetPixels(), totalBytes);
+            return bitmap;
+        }
     }
 
     public void ShowSaveStateDialog()
