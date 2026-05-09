@@ -26,6 +26,7 @@ public abstract class ShapeModel
     public string FillColor { get; set; } = "#5500FF00";
     public bool IsFillTransparent { get; set; } = true;
     public string RegionName { get; set; } = "未分配";
+    public bool IsInteractive { get; set; } = true;
 
     public SKColor GetStrokeColor() => SKColor.Parse(StrokeColor);
     public SKColor GetFillColor() => SKColor.Parse(FillColor);
