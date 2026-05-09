@@ -57,6 +57,22 @@ public sealed class SkiaImageEditorControl : UserControl
     public SKColor PolygonVertexColor { get; set; } = SKColors.DeepSkyBlue;
     public float PolygonVertexRadius { get; set; } = 4f;
 
+    private bool _areShapesInteractive = true;
+    public bool AreShapesInteractive
+    {
+        get => _areShapesInteractive;
+        set
+        {
+            if (_areShapesInteractive == value) return;
+            _areShapesInteractive = value;
+            if (!value)
+            {
+                ClearShapeInteractionState();
+            }
+            Redraw();
+        }
+    }
+
     public SkiaImageEditorControl()
     {
         _surface = new SKElement();
@@ -101,7 +117,7 @@ public sealed class SkiaImageEditorControl : UserControl
         var deleteMenu = new MenuItem { Header = "删除选中图形", Name = "DeleteSelectedShapeMenu" };
         deleteMenu.Click += (_, _) =>
         {
-            if (_selected is null) return;
+            if (_selected is null || !CanInteractWithShape(_selected)) return;
             _shapes.Remove(_selected);
             _selected = null;
             Redraw();
@@ -209,7 +225,8 @@ public sealed class SkiaImageEditorControl : UserControl
 
         foreach (var shape in _shapes)
         {
-            DrawShape(canvas, shape, shape == _selected, shape == _hovered);
+            var canInteract = CanInteractWithShape(shape);
+            DrawShape(canvas, shape, canInteract && shape == _selected, canInteract && shape == _hovered);
             DrawRegionLabel(canvas, shape);
         }
 
@@ -240,7 +257,7 @@ public sealed class SkiaImageEditorControl : UserControl
             }
         }
 
-        if (_selected is not null)
+        if (_selected is not null && CanInteractWithShape(_selected))
         {
             DrawEditHandles(canvas, _selected);
             if (_selected.Type == ShapeType.RotatedRectangle)
@@ -356,7 +373,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (e.ChangedButton == MouseButton.Right)
         {
-            var shapeAtLabel = HitTestRegionLabel(p);
+            var shapeAtLabel = AreShapesInteractive ? HitTestRegionLabel(p) : null;
             if (shapeAtLabel is not null)
             {
                 var dialog = new RegionEditDialog(shapeAtLabel.RegionName) { Owner = Window.GetWindow(this) };
@@ -369,7 +386,7 @@ public sealed class SkiaImageEditorControl : UserControl
             }
         }
 
-        if (e.ChangedButton == MouseButton.Right && _selected is not null)
+        if (e.ChangedButton == MouseButton.Right && _selected is not null && CanInteractWithShape(_selected))
         {
             OpenMainMenu();
             return;
@@ -384,8 +401,8 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_tool == EditorTool.Select)
         {
-            if (_selected?.Type == ShapeType.RotatedRectangle && e.LeftButton == MouseButtonState.Pressed &&
-                IsOnRotationHandle(_selected, p))
+            if (_selected?.Type == ShapeType.RotatedRectangle && CanInteractWithShape(_selected) &&
+                e.LeftButton == MouseButtonState.Pressed && IsOnRotationHandle(_selected, p))
             {
                 _isShapeRotating = true;
                 return;
@@ -473,14 +490,14 @@ public sealed class SkiaImageEditorControl : UserControl
             return;
         }
 
-        if (_isShapeRotating && _selected is not null && e.LeftButton == MouseButtonState.Pressed)
+        if (_isShapeRotating && _selected is not null && CanInteractWithShape(_selected) && e.LeftButton == MouseButtonState.Pressed)
         {
             RotateShapeToPoint(_selected, p);
             Redraw();
             return;
         }
 
-        if (_isShapeDragging && _selected is not null && e.LeftButton == MouseButtonState.Pressed)
+        if (_isShapeDragging && _selected is not null && CanInteractWithShape(_selected) && e.LeftButton == MouseButtonState.Pressed)
         {
             var dx = p.X - _lastWorld.X;
             var dy = p.Y - _lastWorld.Y;
@@ -522,7 +539,7 @@ public sealed class SkiaImageEditorControl : UserControl
             {
                 Cursor = Cursors.Hand;
             }
-            else if (_selected is not null && HitTestHandle(_selected, p) is not null)
+            else if (_selected is not null && CanInteractWithShape(_selected) && HitTestHandle(_selected, p) is not null)
             {
                 Cursor = Cursors.Hand;
             }
@@ -532,7 +549,7 @@ public sealed class SkiaImageEditorControl : UserControl
             }
             Redraw();
         }
-        else if (_selected is not null && HitTestHandle(_selected, p) is not null)
+        else if (_selected is not null && CanInteractWithShape(_selected) && HitTestHandle(_selected, p) is not null)
         {
             Cursor = Cursors.Hand;
         }
@@ -570,8 +587,12 @@ public sealed class SkiaImageEditorControl : UserControl
 
     private ShapeModel? HitTest(SKPoint p)
     {
+        if (!AreShapesInteractive) return null;
+
         for (var i = _shapes.Count - 1; i >= 0; i--)
         {
+            if (!CanInteractWithShape(_shapes[i])) continue;
+
             if (_shapes[i].Type == ShapeType.CrossPoint && _shapes[i].Points.Count > 0)
             {
                 if (Distance(_shapes[i].Points[0], p) <= 10f / _zoom) return _shapes[i];
@@ -585,6 +606,18 @@ public sealed class SkiaImageEditorControl : UserControl
         }
 
         return null;
+    }
+
+    private bool CanInteractWithShape(ShapeModel shape) => AreShapesInteractive && shape.IsInteractive;
+
+    private void ClearShapeInteractionState()
+    {
+        _selected = null;
+        _hovered = null;
+        _activeHandle = null;
+        _isShapeDragging = false;
+        _isShapeRotating = false;
+        Cursor = Cursors.Arrow;
     }
 
     private SKPoint ToWorld(Point p)
@@ -687,8 +720,12 @@ public sealed class SkiaImageEditorControl : UserControl
 
     private ShapeModel? HitTestRegionLabel(SKPoint p)
     {
+        if (!AreShapesInteractive) return null;
+
         for (var i = _shapes.Count - 1; i >= 0; i--)
         {
+            if (!CanInteractWithShape(_shapes[i])) continue;
+
             var text = string.IsNullOrWhiteSpace(_shapes[i].RegionName) ? "未分配" : _shapes[i].RegionName;
             var rect = GetRegionLabelRect(_shapes[i], text);
             if (rect is SKRect r && r.Contains(p))
