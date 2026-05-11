@@ -27,6 +27,7 @@ public abstract class ShapeModel
     public bool IsFillTransparent { get; set; } = true;
     public string RegionName { get; set; } = "未分配";
     public bool IsInteractive { get; set; } = true;
+    public RectangleSliceOptions? RectangleSlice { get; set; }
 
     public SKColor GetStrokeColor() => SKColor.Parse(StrokeColor);
     public SKColor GetFillColor() => SKColor.Parse(FillColor);
@@ -106,25 +107,10 @@ public sealed class RectangleShapeModel : ShapeModel
     }
 }
 
-public sealed class PolygonShapeModel : ShapeModel
+public sealed class RectangleSliceOptions
 {
-    public override ShapeType Type => ShapeType.Polygon;
-
-    public override SKPath ToPath()
-    {
-        var path = new SKPath();
-        if (Points.Count >= 3)
-        {
-            path.MoveTo(Points[0]);
-            for (var i = 1; i < Points.Count; i++)
-            {
-                path.LineTo(Points[i]);
-            }
-            path.Close();
-        }
-
-        return path;
-    }
+    public int Columns { get; set; } = 1;
+    public int Rows { get; set; } = 1;
 }
 
 public sealed class CanvasState
