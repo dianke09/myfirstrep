@@ -127,6 +127,9 @@ public sealed class SkiaImageEditorControl : UserControl
         _sliceRectangleMenu = new MenuItem { Header = "切片" };
         _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
 
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
         ContextMenu = new ContextMenu();
         ContextMenu.Opened += (_, _) => UpdateContextMenuItems();
         ContextMenu.Items.Add(_sliceRectangleMenu);
@@ -171,6 +174,7 @@ public sealed class SkiaImageEditorControl : UserControl
                 Columns = dialog.Columns,
                 Rows = dialog.Rows
             };
+            RebuildSubSlicedRectangles(rectangle);
             Redraw();
         }
     }
@@ -331,6 +335,7 @@ public sealed class SkiaImageEditorControl : UserControl
             canvas.DrawPath(path, fill);
         }
 
+        DrawRectangleSlices(canvas, shape);
         canvas.DrawPath(path, stroke);
         DrawRectangleSlices(canvas, shape);
     }
@@ -386,6 +391,52 @@ public sealed class SkiaImageEditorControl : UserControl
         };
         canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
         canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
+        {
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
+    private static void DrawRectangleSlices(SKCanvas canvas, ShapeModel shape)
+    {
+        if (shape.Type != ShapeType.Rectangle || shape.Points.Count < 2 ||
+            shape.RectangleSlice is not { Columns: > 0, Rows: > 0 })
+        {
+            return;
+        }
+
+        if (shape.SubSlicedRectangles.Count == 0)
+        {
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
+        {
+            Color = shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1f, shape.StrokeWidth),
+            IsAntialias = true,
+            PathEffect = dash
+        };
+
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
+        }
     }
 
     private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
@@ -741,6 +792,11 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             shape.Points[i] = new SKPoint(shape.Points[i].X + dx, shape.Points[i].Y + dy);
         }
+
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            TranslateShape(subRectangle, dx, dy);
+        }
     }
 
     private void DrawEditHandles(SKCanvas canvas, ShapeModel shape)
@@ -895,6 +951,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
             shape.Points[0] = new SKPoint(minX, minY);
             shape.Points[1] = new SKPoint(maxX, maxY);
+            RebuildSubSlicedRectangles(shape);
         }
     }
 
@@ -939,6 +996,44 @@ public sealed class SkiaImageEditorControl : UserControl
         var minY = Math.Min(shape.Points[0].Y, shape.Points[1].Y);
         var maxY = Math.Max(shape.Points[0].Y, shape.Points[1].Y);
         return new SKRect(minX, minY, maxX, maxY);
+    }
+
+
+    private static void RebuildSubSlicedRectangles(ShapeModel shape)
+    {
+        shape.SubSlicedRectangles.Clear();
+        if (shape.Type != ShapeType.Rectangle || shape.Points.Count < 2 ||
+            shape.RectangleSlice is not { Columns: > 0, Rows: > 0 } slice)
+        {
+            return;
+        }
+
+        var rect = GetAxisAlignedRect(shape);
+        if (rect.Width <= 0 || rect.Height <= 0) return;
+
+        var columnWidth = rect.Width / slice.Columns;
+        var rowHeight = rect.Height / slice.Rows;
+        for (var row = 0; row < slice.Rows; row++)
+        {
+            var top = rect.Top + rowHeight * row;
+            var bottom = row == slice.Rows - 1 ? rect.Bottom : rect.Top + rowHeight * (row + 1);
+            for (var column = 0; column < slice.Columns; column++)
+            {
+                var left = rect.Left + columnWidth * column;
+                var right = column == slice.Columns - 1 ? rect.Right : rect.Left + columnWidth * (column + 1);
+                shape.SubSlicedRectangles.Add(new ShapeModel
+                {
+                    Type = ShapeType.Rectangle,
+                    Points = new List<SKPoint> { new(left, top), new(right, bottom) },
+                    StrokeWidth = shape.StrokeWidth,
+                    StrokeColor = shape.StrokeColor,
+                    FillColor = shape.FillColor,
+                    IsFillTransparent = true,
+                    IsInteractive = false,
+                    RegionName = shape.RegionName
+                });
+            }
+        }
     }
 
     private static void ResizeRotatedRectangleByCorner(ShapeModel shape, int cornerIndex, SKPoint movedCorner)
