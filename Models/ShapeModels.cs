@@ -5,8 +5,10 @@ namespace Myfirstrep.Models;
 public enum ShapeType
 {
     Rectangle,
+    RotatedRectangle,
     Circle,
-    Polygon
+    Polygon,
+    CrossPoint
 }
 
 public sealed class ShapeModel
@@ -19,6 +21,9 @@ public sealed class ShapeModel
     public string FillColor { get; set; } = "#5500FF00";
     public bool IsFillTransparent { get; set; } = true;
     public string RegionName { get; set; } = "未分配";
+    public bool IsInteractive { get; set; } = true;
+    public RectangleSliceOptions? RectangleSlice { get; set; }
+    public List<ShapeModel> SubSlicedRectangles { get; set; } = new();
 
     public SKColor GetStrokeColor() => SKColor.Parse(StrokeColor);
     public SKColor GetFillColor() => SKColor.Parse(FillColor);
@@ -47,6 +52,16 @@ public sealed class ShapeModel
                     path.AddCircle(center.X, center.Y, radius);
                 }
                 break;
+            case ShapeType.RotatedRectangle:
+                if (Points.Count >= 4)
+                {
+                    path.MoveTo(Points[0]);
+                    path.LineTo(Points[1]);
+                    path.LineTo(Points[2]);
+                    path.LineTo(Points[3]);
+                    path.Close();
+                }
+                break;
             case ShapeType.Polygon:
                 if (Points.Count >= 3)
                 {
@@ -56,6 +71,17 @@ public sealed class ShapeModel
                         path.LineTo(Points[i]);
                     }
                     path.Close();
+                }
+                break;
+            case ShapeType.CrossPoint:
+                if (Points.Count >= 1)
+                {
+                    var p = Points[0];
+                    var size = 8f;
+                    path.MoveTo(p.X - size, p.Y);
+                    path.LineTo(p.X + size, p.Y);
+                    path.MoveTo(p.X, p.Y - size);
+                    path.LineTo(p.X, p.Y + size);
                 }
                 break;
         }
@@ -69,6 +95,12 @@ public sealed class ShapeModel
         var dy = a.Y - b.Y;
         return MathF.Sqrt(dx * dx + dy * dy);
     }
+}
+
+public sealed class RectangleSliceOptions
+{
+    public int Columns { get; set; } = 1;
+    public int Rows { get; set; } = 1;
 }
 
 public sealed class CanvasState
