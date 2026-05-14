@@ -9,6 +9,7 @@ public enum ShapeType
     RotatedRectangle,
     Circle,
     Polygon,
+    PolygonWithHoles,
     CrossPoint
 }
 
@@ -29,6 +30,7 @@ public abstract class ShapeModel
     public bool IsInteractive { get; set; } = true;
     public RectangleSliceOptions? RectangleSlice { get; set; }
     public List<ShapeModel> SubSlicedRectangles { get; set; } = new();
+    public List<List<SKPoint>> PolygonHoles { get; set; } = new();
 
     public SKColor GetStrokeColor() => SKColor.Parse(StrokeColor);
     public SKColor GetFillColor() => SKColor.Parse(FillColor);
@@ -74,14 +76,14 @@ public sealed class RectangleShapeModel : ShapeModel
                 }
                 break;
             case ShapeType.Polygon:
-                if (Points.Count >= 3)
+                AddPolygon(path, Points);
+                break;
+            case ShapeType.PolygonWithHoles:
+                path.FillType = SKPathFillType.EvenOdd;
+                AddPolygon(path, Points);
+                foreach (var hole in PolygonHoles)
                 {
-                    path.MoveTo(Points[0]);
-                    for (var i = 1; i < Points.Count; i++)
-                    {
-                        path.LineTo(Points[i]);
-                    }
-                    path.Close();
+                    AddPolygon(path, hole);
                 }
                 break;
             case ShapeType.CrossPoint:
@@ -98,6 +100,18 @@ public sealed class RectangleShapeModel : ShapeModel
         }
 
         return path;
+    }
+
+    private static void AddPolygon(SKPath path, IReadOnlyList<SKPoint> points)
+    {
+        if (points.Count < 3) return;
+
+        path.MoveTo(points[0]);
+        for (var i = 1; i < points.Count; i++)
+        {
+            path.LineTo(points[i]);
+        }
+        path.Close();
     }
 
     private static float Distance(SKPoint a, SKPoint b)
