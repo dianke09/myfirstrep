@@ -6,27 +6,24 @@ namespace Myfirstrep.Controls;
 
 public sealed class RectangleSliceDialog : Window
 {
-    private readonly TextBox _columnsInput;
-    private readonly TextBox _rowsInput;
+    private readonly TextBox _rowHeightInput;
 
-    public int Columns { get; private set; }
-    public int Rows { get; private set; }
+    public float RowHeight { get; private set; }
 
     public RectangleSliceDialog(RectangleSliceOptions? current)
     {
         Title = "矩形切片";
         Width = 360;
-        Height = 220;
+        Height = 180;
         ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        Columns = Math.Max(1, current?.Columns ?? 1);
-        Rows = Math.Max(1, current?.Rows ?? 1);
+        RowHeight = Math.Max(1f, current?.RowHeight ?? 10f);
 
         var panel = new DockPanel { Margin = new Thickness(12) };
         var description = new TextBlock
         {
-            Text = "设置切片列数和行数。最后一列/最后一行会使用总宽/总高减去前面切片后的剩余值。",
+            Text = "设置切片行高。总高使用原 Rectangle 的高度，最后一行会使用总高减去前面切片后的剩余高度。",
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 12)
         };
@@ -36,27 +33,18 @@ public sealed class RectangleSliceDialog : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         DockPanel.SetDock(grid, Dock.Top);
 
-        var columnsLabel = new TextBlock { Text = "列数：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 8) };
-        _columnsInput = new TextBox { Text = Columns.ToString(), Margin = new Thickness(0, 0, 0, 8) };
-        var rowsLabel = new TextBlock { Text = "行数：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        _rowsInput = new TextBox { Text = Rows.ToString() };
+        var rowHeightLabel = new TextBlock { Text = "行高：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        _rowHeightInput = new TextBox { Text = RowHeight.ToString("0.###") };
 
-        Grid.SetRow(columnsLabel, 0);
-        Grid.SetColumn(columnsLabel, 0);
-        Grid.SetRow(_columnsInput, 0);
-        Grid.SetColumn(_columnsInput, 1);
-        Grid.SetRow(rowsLabel, 1);
-        Grid.SetColumn(rowsLabel, 0);
-        Grid.SetRow(_rowsInput, 1);
-        Grid.SetColumn(_rowsInput, 1);
+        Grid.SetRow(rowHeightLabel, 0);
+        Grid.SetColumn(rowHeightLabel, 0);
+        Grid.SetRow(_rowHeightInput, 0);
+        Grid.SetColumn(_rowHeightInput, 1);
 
-        grid.Children.Add(columnsLabel);
-        grid.Children.Add(_columnsInput);
-        grid.Children.Add(rowsLabel);
-        grid.Children.Add(_rowsInput);
+        grid.Children.Add(rowHeightLabel);
+        grid.Children.Add(_rowHeightInput);
 
         var buttons = new StackPanel
         {
@@ -84,15 +72,13 @@ public sealed class RectangleSliceDialog : Window
 
     private void Confirm()
     {
-        if (!int.TryParse(_columnsInput.Text.Trim(), out var columns) || columns < 1 ||
-            !int.TryParse(_rowsInput.Text.Trim(), out var rows) || rows < 1)
+        if (!float.TryParse(_rowHeightInput.Text.Trim(), out var rowHeight) || rowHeight <= 0)
         {
-            MessageBox.Show(this, "列数和行数必须是大于 0 的整数。", "切片参数无效", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "切片行高必须是大于 0 的数字。", "切片参数无效", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        Columns = columns;
-        Rows = rows;
+        RowHeight = rowHeight;
         DialogResult = true;
         Close();
     }

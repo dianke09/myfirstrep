@@ -110,8 +110,7 @@ public sealed class RectangleShapeModel : ShapeModel
 
 public sealed class RectangleSliceOptions
 {
-    public int Columns { get; set; } = 1;
-    public int Rows { get; set; } = 1;
+    public float RowHeight { get; set; } = 10f;
 }
 
 public sealed class CanvasState
