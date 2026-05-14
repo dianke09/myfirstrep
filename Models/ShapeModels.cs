@@ -30,7 +30,7 @@ public abstract class ShapeModel
     public bool IsInteractive { get; set; } = true;
     public RectangleSliceOptions? RectangleSlice { get; set; }
     public List<ShapeModel> SubSlicedRectangles { get; set; } = new();
-    public List<List<SKPoint>> PolygonHoles { get; set; } = new();
+    public List<PolygonContour> PolygonHoles { get; set; } = new();
 
     public SKColor GetStrokeColor() => SKColor.Parse(StrokeColor);
     public SKColor GetFillColor() => SKColor.Parse(FillColor);
@@ -81,9 +81,9 @@ public sealed class RectangleShapeModel : ShapeModel
             case ShapeType.PolygonWithHoles:
                 path.FillType = SKPathFillType.EvenOdd;
                 AddPolygon(path, Points);
-                foreach (var hole in PolygonHoles)
+                foreach (var hole in PolygonHoles.Where(h => h.IsHole))
                 {
-                    AddPolygon(path, hole);
+                    AddPolygon(path, hole.Points);
                 }
                 break;
             case ShapeType.CrossPoint:
@@ -120,6 +120,13 @@ public sealed class RectangleShapeModel : ShapeModel
         var dy = a.Y - b.Y;
         return MathF.Sqrt(dx * dx + dy * dy);
     }
+}
+
+public class PolygonContour
+{
+    public bool IsHole { get; set; }
+
+    public List<SKPoint> Points { get; set; } = new();
 }
 
 public sealed class RectangleSliceOptions
