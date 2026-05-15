@@ -12,7 +12,7 @@ public sealed class RectangleSliceDialog : Window
 
     public RectangleSliceDialog(RectangleSliceOptions? current)
     {
-        Title = "矩形切片";
+        Title = "图形切片";
         Width = 360;
         Height = 180;
         ResizeMode = ResizeMode.NoResize;
@@ -23,7 +23,7 @@ public sealed class RectangleSliceDialog : Window
         var panel = new DockPanel { Margin = new Thickness(12) };
         var description = new TextBlock
         {
-            Text = "设置切片行高。总高使用原 Rectangle 的高度，最后一行会使用总高减去前面切片后的剩余高度。",
+            Text = "设置切片行高。总高使用原图形的高度，最后一行会使用总高减去前面切片后的剩余高度。",
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 12)
         };
