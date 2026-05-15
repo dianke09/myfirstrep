@@ -138,6 +138,12 @@ public sealed class SkiaImageEditorControl : UserControl
         _sliceRectangleMenu = new MenuItem { Header = "切片" };
         _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
 
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
         ContextMenu = new ContextMenu();
         ContextMenu.Opened += (_, _) => UpdateContextMenuItems();
         ContextMenu.Items.Add(_sliceRectangleMenu);
@@ -165,23 +171,26 @@ public sealed class SkiaImageEditorControl : UserControl
 
     private void UpdateContextMenuItems()
     {
-        var canSliceRectangle = _selected is { Type: ShapeType.Rectangle } && CanInteractWithShape(_selected);
-        _sliceRectangleMenu.Visibility = canSliceRectangle ? Visibility.Visible : Visibility.Collapsed;
-        _sliceRectangleMenu.IsEnabled = canSliceRectangle;
+        var canSliceShape = _selected is not null && IsSliceableShape(_selected) && CanInteractWithShape(_selected);
+        _sliceRectangleMenu.Visibility = canSliceShape ? Visibility.Visible : Visibility.Collapsed;
+        _sliceRectangleMenu.IsEnabled = canSliceShape;
     }
+
+    private static bool IsSliceableShape(ShapeModel shape)
+        => shape.Type is ShapeType.Rectangle or ShapeType.Polygon;
 
     private void ShowRectangleSliceDialog()
     {
-        if (_selected is not { Type: ShapeType.Rectangle } rectangle || !CanInteractWithShape(rectangle)) return;
+        if (_selected is not { } shape || !IsSliceableShape(shape) || !CanInteractWithShape(shape)) return;
 
-        var dialog = new RectangleSliceDialog(rectangle.RectangleSlice) { Owner = Window.GetWindow(this) };
+        var dialog = new RectangleSliceDialog(shape.RectangleSlice) { Owner = Window.GetWindow(this) };
         if (dialog.ShowDialog() == true)
         {
-            rectangle.RectangleSlice = new RectangleSliceOptions
+            shape.RectangleSlice = new RectangleSliceOptions
             {
                 RowHeight = dialog.RowHeight
             };
-            RebuildSubSlicedRectangles(rectangle);
+            RebuildSubSlicedRectangles(shape);
             Redraw();
         }
     }
@@ -342,7 +351,7 @@ public sealed class SkiaImageEditorControl : UserControl
             canvas.DrawPath(path, fill);
         }
 
-        DrawRectangleSlices(canvas, shape);
+        DrawShapeSlices(canvas, shape);
         canvas.DrawPath(path, stroke);
         DrawRectangleSlices(canvas, shape);
     }
@@ -512,6 +521,97 @@ public sealed class SkiaImageEditorControl : UserControl
     {
         if (shape.Type != ShapeType.Rectangle || shape.Points.Count < 2 ||
             shape.RectangleSlice is not { RowHeight: > 0 })
+        {
+            return;
+        }
+
+        if (shape.SubSlicedRectangles.Count == 0)
+        {
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
+        {
+            Color = shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1f, shape.StrokeWidth),
+            IsAntialias = true,
+            PathEffect = dash
+        };
+
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
+        }
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
+        {
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
+    private static void DrawRectangleSlices(SKCanvas canvas, ShapeModel shape)
+    {
+        if (shape.Type != ShapeType.Rectangle || shape.Points.Count < 2 ||
+            shape.RectangleSlice is not { RowHeight: > 0 })
+        {
+            return;
+        }
+
+        if (shape.SubSlicedRectangles.Count == 0)
+        {
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
+        {
+            Color = shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1f, shape.StrokeWidth),
+            IsAntialias = true,
+            PathEffect = dash
+        };
+
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
+        }
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
+        {
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
+    private static void DrawShapeSlices(SKCanvas canvas, ShapeModel shape)
+    {
+        if (!IsSliceableShape(shape) || shape.RectangleSlice is not { RowHeight: > 0 })
         {
             return;
         }
@@ -913,7 +1013,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         for (var i = 0; i < shape.PolygonHoles.Count; i++)
         {
-            TranslatePoints(shape.PolygonHoles[i], dx, dy);
+            TranslatePoints(shape.PolygonHoles[i].Points, dx, dy);
         }
     }
 
@@ -927,8 +1027,12 @@ public sealed class SkiaImageEditorControl : UserControl
 
     private static void TranslatePolygonHole(ShapeModel shape, int holeIndex, float dx, float dy)
     {
-        if (shape.Type != ShapeType.PolygonWithHoles || holeIndex < 0 || holeIndex >= shape.PolygonHoles.Count) return;
-        TranslatePoints(shape.PolygonHoles[holeIndex], dx, dy);
+        if (shape.Type != ShapeType.PolygonWithHoles || holeIndex < 0 || holeIndex >= shape.PolygonHoles.Count ||
+            !shape.PolygonHoles[holeIndex].IsHole)
+        {
+            return;
+        }
+        TranslatePoints(shape.PolygonHoles[holeIndex].Points, dx, dy);
     }
 
     private void DrawEditHandles(SKCanvas canvas, ShapeModel shape)
@@ -969,9 +1073,9 @@ public sealed class SkiaImageEditorControl : UserControl
         if (shape.Type == ShapeType.PolygonWithHoles)
         {
             var points = new List<SKPoint>(shape.Points);
-            foreach (var hole in shape.PolygonHoles)
+            foreach (var hole in shape.PolygonHoles.Where(h => h.IsHole))
             {
-                points.AddRange(hole);
+                points.AddRange(hole.Points);
             }
             return points;
         }
@@ -994,9 +1098,10 @@ public sealed class SkiaImageEditorControl : UserControl
             for (var holeIndex = 0; holeIndex < shape.PolygonHoles.Count; holeIndex++)
             {
                 var hole = shape.PolygonHoles[holeIndex];
-                for (var i = 0; i < hole.Count; i++)
+                if (!hole.IsHole) continue;
+                for (var i = 0; i < hole.Points.Count; i++)
                 {
-                    if (Distance(hole[i], p) <= 8f / _zoom)
+                    if (Distance(hole.Points[i], p) <= 8f / _zoom)
                     {
                         return new EditHandle { HoleIndex = holeIndex, Index = i };
                     }
@@ -1081,6 +1186,7 @@ public sealed class SkiaImageEditorControl : UserControl
             if (handle.Index >= 0 && handle.Index < shape.Points.Count)
             {
                 shape.Points[handle.Index] = p;
+                RebuildSubSlicedRectangles(shape);
             }
             return;
         }
@@ -1090,9 +1196,10 @@ public sealed class SkiaImageEditorControl : UserControl
             if (handle.HoleIndex is int holeIndex)
             {
                 if (holeIndex >= 0 && holeIndex < shape.PolygonHoles.Count &&
-                    handle.Index >= 0 && handle.Index < shape.PolygonHoles[holeIndex].Count)
+                    shape.PolygonHoles[holeIndex].IsHole &&
+                    handle.Index >= 0 && handle.Index < shape.PolygonHoles[holeIndex].Points.Count)
                 {
-                    shape.PolygonHoles[holeIndex][handle.Index] = p;
+                    shape.PolygonHoles[holeIndex].Points[handle.Index] = p;
                 }
             }
             else if (handle.Index >= 0 && handle.Index < shape.Points.Count)
@@ -1144,7 +1251,7 @@ public sealed class SkiaImageEditorControl : UserControl
         if (shape.Type != ShapeType.PolygonWithHoles) return -1;
         for (var i = shape.PolygonHoles.Count - 1; i >= 0; i--)
         {
-            if (IsPointInPolygon(shape.PolygonHoles[i], p))
+            if (shape.PolygonHoles[i].IsHole && IsPointInPolygon(shape.PolygonHoles[i].Points, p))
             {
                 return i;
             }
@@ -1219,13 +1326,15 @@ public sealed class SkiaImageEditorControl : UserControl
     private static void RebuildSubSlicedRectangles(ShapeModel shape)
     {
         shape.SubSlicedRectangles.Clear();
-        if (shape.Type != ShapeType.Rectangle || shape.Points.Count < 2 ||
-            shape.RectangleSlice is not { RowHeight: > 0 } slice)
+        if (!IsSliceableShape(shape) || shape.RectangleSlice is not { RowHeight: > 0 } slice)
         {
             return;
         }
 
-        var rect = GetAxisAlignedRect(shape);
+        var bounds = GetSliceBounds(shape);
+        if (!bounds.HasValue) return;
+
+        var rect = bounds.Value;
         if (rect.Width <= 0 || rect.Height <= 0) return;
 
         var sliceHeight = Math.Min(slice.RowHeight, rect.Height);
@@ -1234,18 +1343,93 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             var top = rect.Top + sliceHeight * row;
             var bottom = row == rowCount - 1 ? rect.Bottom : Math.Min(rect.Bottom, top + sliceHeight);
-            shape.SubSlicedRectangles.Add(new ShapeModel
+            if (shape.Type == ShapeType.Rectangle)
             {
-                Type = ShapeType.Rectangle,
-                Points = new List<SKPoint> { new(rect.Left, top), new(rect.Right, bottom) },
-                StrokeWidth = shape.StrokeWidth,
-                StrokeColor = shape.StrokeColor,
-                FillColor = shape.FillColor,
-                IsFillTransparent = true,
-                IsInteractive = false,
-                RegionName = shape.RegionName
-            });
+                shape.SubSlicedRectangles.Add(CreateSubSliceShape(
+                    shape,
+                    ShapeType.Rectangle,
+                    new List<SKPoint> { new(rect.Left, top), new(rect.Right, bottom) }));
+            }
+            else if (shape.Type == ShapeType.Polygon)
+            {
+                var clipped = ClipPolygonToHorizontalBand(shape.Points, top, bottom);
+                if (clipped.Count >= 3)
+                {
+                    shape.SubSlicedRectangles.Add(CreateSubSliceShape(shape, ShapeType.Polygon, clipped));
+                }
+            }
         }
+    }
+
+    private static ShapeModel CreateSubSliceShape(ShapeModel source, ShapeType type, List<SKPoint> points)
+        => new()
+        {
+            Type = type,
+            Points = points,
+            StrokeWidth = source.StrokeWidth,
+            StrokeColor = source.StrokeColor,
+            FillColor = source.FillColor,
+            IsFillTransparent = true,
+            IsInteractive = false,
+            RegionName = source.RegionName
+        };
+
+    private static SKRect? GetSliceBounds(ShapeModel shape)
+    {
+        if (shape.Type == ShapeType.Rectangle && shape.Points.Count >= 2)
+        {
+            return GetAxisAlignedRect(shape);
+        }
+
+        if (shape.Type == ShapeType.Polygon && shape.Points.Count >= 3)
+        {
+            using var path = shape.ToPath();
+            return path.Bounds;
+        }
+
+        return null;
+    }
+
+    private static List<SKPoint> ClipPolygonToHorizontalBand(IReadOnlyList<SKPoint> points, float top, float bottom)
+    {
+        var clipped = ClipPolygonByHorizontalBoundary(points, top, keepBelow: false);
+        return ClipPolygonByHorizontalBoundary(clipped, bottom, keepBelow: true);
+    }
+
+    private static List<SKPoint> ClipPolygonByHorizontalBoundary(IReadOnlyList<SKPoint> points, float y, bool keepBelow)
+    {
+        var result = new List<SKPoint>();
+        if (points.Count == 0) return result;
+
+        var previous = points[^1];
+        var previousInside = keepBelow ? previous.Y <= y : previous.Y >= y;
+        foreach (var current in points)
+        {
+            var currentInside = keepBelow ? current.Y <= y : current.Y >= y;
+            if (currentInside != previousInside)
+            {
+                result.Add(IntersectWithHorizontal(previous, current, y));
+            }
+
+            if (currentInside)
+            {
+                result.Add(current);
+            }
+
+            previous = current;
+            previousInside = currentInside;
+        }
+
+        return result;
+    }
+
+    private static SKPoint IntersectWithHorizontal(SKPoint a, SKPoint b, float y)
+    {
+        var dy = b.Y - a.Y;
+        if (Math.Abs(dy) < 1e-5f) return a;
+
+        var t = (y - a.Y) / dy;
+        return new SKPoint(a.X + (b.X - a.X) * t, y);
     }
 
     private static void ResizeRotatedRectangleByCorner(ShapeModel shape, int cornerIndex, SKPoint movedCorner)
