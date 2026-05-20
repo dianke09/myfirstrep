@@ -23,6 +23,7 @@ public enum EditorTool
     RotatedRectangle,
     Circle,
     Polygon,
+    Line,
     CrossPoint
 }
 
@@ -125,6 +126,9 @@ public sealed class SkiaImageEditorControl : UserControl
             Redraw();
         };
         _mainMenu.Items.Add(deleteMenu);
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
 
         _sliceRectangleMenu = new MenuItem { Header = "切片" };
         _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
@@ -322,6 +326,19 @@ public sealed class SkiaImageEditorControl : UserControl
         if (shape.Type == ShapeType.CrossPoint)
         {
             DrawCrossPoint(canvas, shape, isSelected);
+            return;
+        }
+
+        if (shape.Type == ShapeType.Line && shape.Points.Count >= 2)
+        {
+            using var lineStroke = new SKPaint
+            {
+                Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+                IsAntialias = true
+            };
+            canvas.DrawLine(shape.Points[0], shape.Points[1], lineStroke);
             return;
         }
 
@@ -654,6 +671,51 @@ public sealed class SkiaImageEditorControl : UserControl
         canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
     }
 
+    private static void DrawShapeSlices(SKCanvas canvas, ShapeModel shape)
+    {
+        if (!IsSliceableShape(shape) || shape.RectangleSlice is not { RowHeight: > 0 })
+        {
+            return;
+        }
+
+        if (shape.SubSlicedRectangles.Count == 0)
+        {
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
+        {
+            Color = shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1f, shape.StrokeWidth),
+            IsAntialias = true,
+            PathEffect = dash
+        };
+
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
+        }
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
+        {
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
     private void DrawRegionLabel(SKCanvas canvas, ShapeModel shape)
     {
         var text = string.IsNullOrWhiteSpace(shape.RegionName) ? "未分配" : shape.RegionName;
@@ -777,10 +839,11 @@ public sealed class SkiaImageEditorControl : UserControl
             return;
         }
 
-        if (_tool == EditorTool.Rectangle || _tool == EditorTool.Circle || _tool == EditorTool.RotatedRectangle)
+        if (_tool == EditorTool.Rectangle || _tool == EditorTool.Circle || _tool == EditorTool.RotatedRectangle || _tool == EditorTool.Line)
         {
             var shapeType = _tool == EditorTool.Rectangle ? ShapeType.Rectangle :
-                            _tool == EditorTool.Circle ? ShapeType.Circle : ShapeType.RotatedRectangle;
+                            _tool == EditorTool.Circle ? ShapeType.Circle :
+                            _tool == EditorTool.RotatedRectangle ? ShapeType.RotatedRectangle : ShapeType.Line;
             _drawingStartPoint = p;
             _drawing = new ShapeModel
             {
@@ -947,6 +1010,11 @@ public sealed class SkiaImageEditorControl : UserControl
                 if (Distance(_shapes[i].Points[0], p) <= 10f / _zoom) return _shapes[i];
                 continue;
             }
+            if (_shapes[i].Type == ShapeType.Line && _shapes[i].Points.Count >= 2)
+            {
+                if (DistancePointToSegment(p, _shapes[i].Points[0], _shapes[i].Points[1]) <= 8f / _zoom) return _shapes[i];
+                continue;
+            }
             if (_shapes[i].Type == ShapeType.PolygonWithHoles && IsPointInPolygon(_shapes[i].Points, p))
             {
                 return _shapes[i];
@@ -1068,6 +1136,11 @@ public sealed class SkiaImageEditorControl : UserControl
         if (shape.Type == ShapeType.CrossPoint && shape.Points.Count >= 1)
         {
             return new List<SKPoint> { shape.Points[0] };
+        }
+
+        if (shape.Type == ShapeType.Line && shape.Points.Count >= 2)
+        {
+            return new List<SKPoint> { shape.Points[0], shape.Points[1] };
         }
 
         if (shape.Type == ShapeType.PolygonWithHoles)
@@ -1218,6 +1291,13 @@ public sealed class SkiaImageEditorControl : UserControl
         if (shape.Type == ShapeType.CrossPoint && shape.Points.Count >= 1)
         {
             shape.Points[0] = p;
+            return;
+        }
+
+        if (shape.Type == ShapeType.Line && shape.Points.Count >= 2)
+        {
+            if (handle.Index == 0) shape.Points[0] = p;
+            else if (handle.Index == 1) shape.Points[1] = p;
             return;
         }
 

@@ -10,6 +10,7 @@ public enum ShapeType
     Circle,
     Polygon,
     PolygonWithHoles,
+    Line,
     CrossPoint
 }
 
@@ -84,6 +85,13 @@ public sealed class RectangleShapeModel : ShapeModel
                 foreach (var hole in PolygonHoles.Where(h => h.IsHole))
                 {
                     AddPolygon(path, hole.Points);
+                }
+                break;
+            case ShapeType.Line:
+                if (Points.Count >= 2)
+                {
+                    path.MoveTo(Points[0]);
+                    path.LineTo(Points[1]);
                 }
                 break;
             case ShapeType.CrossPoint:
