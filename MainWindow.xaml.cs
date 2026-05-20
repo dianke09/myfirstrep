@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private void RotatedRectangle_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.RotatedRectangle);
     private void Circle_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.Circle);
     private void Polygon_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.Polygon);
+    private void Line_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.Line);
     private void CrossPoint_Click(object sender, RoutedEventArgs e) => _editor.SetTool(EditorTool.CrossPoint);
     private void SaveState_Click(object sender, RoutedEventArgs e) => _editor.ShowSaveStateDialog();
     private void LoadState_Click(object sender, RoutedEventArgs e) => _editor.ShowLoadStateDialog();
