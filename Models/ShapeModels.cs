@@ -11,6 +11,7 @@ public enum ShapeType
     Polygon,
     PolygonWithHoles,
     Line,
+    Corner,
     CrossPoint
 }
 
@@ -32,6 +33,7 @@ public abstract class ShapeModel
     public RectangleSliceOptions? RectangleSlice { get; set; }
     public List<ShapeModel> SubSlicedRectangles { get; set; } = new();
     public List<PolygonContour> PolygonHoles { get; set; } = new();
+    public List<ShapeModel> CornerLines { get; set; } = new();
 
     public SKColor GetStrokeColor() => SKColor.Parse(StrokeColor);
     public SKColor GetFillColor() => SKColor.Parse(FillColor);
@@ -92,6 +94,13 @@ public sealed class RectangleShapeModel : ShapeModel
                 {
                     path.MoveTo(Points[0]);
                     path.LineTo(Points[1]);
+                }
+                break;
+            case ShapeType.Corner:
+                foreach (var line in CornerLines.Where(l => l.Type == ShapeType.Line && l.Points.Count >= 2))
+                {
+                    path.MoveTo(line.Points[0]);
+                    path.LineTo(line.Points[1]);
                 }
                 break;
             case ShapeType.CrossPoint:
