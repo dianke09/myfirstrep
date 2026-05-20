@@ -148,6 +148,9 @@ public sealed class SkiaImageEditorControl : UserControl
         _sliceRectangleMenu = new MenuItem { Header = "切片" };
         _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
 
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
         ContextMenu = new ContextMenu();
         ContextMenu.Opened += (_, _) => UpdateContextMenuItems();
         ContextMenu.Items.Add(_sliceRectangleMenu);
@@ -716,6 +719,51 @@ public sealed class SkiaImageEditorControl : UserControl
         canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
     }
 
+    private static void DrawShapeSlices(SKCanvas canvas, ShapeModel shape)
+    {
+        if (!IsSliceableShape(shape) || shape.RectangleSlice is not { RowHeight: > 0 })
+        {
+            return;
+        }
+
+        if (shape.SubSlicedRectangles.Count == 0)
+        {
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
+        {
+            Color = shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1f, shape.StrokeWidth),
+            IsAntialias = true,
+            PathEffect = dash
+        };
+
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
+        }
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
+        {
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
     private void DrawRegionLabel(SKCanvas canvas, ShapeModel shape)
     {
         var text = string.IsNullOrWhiteSpace(shape.RegionName) ? "未分配" : shape.RegionName;
@@ -927,7 +975,18 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_drawing is not null)
         {
-            _drawing.Points[1] = p;
+            if (_drawing.Type == ShapeType.Line && _drawing.Points.Count >= 2)
+            {
+                var end = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)
+                    ? GetOrthogonalPoint(_drawing.Points[0], p)
+                    : p;
+                _drawing.Points[1] = end;
+            }
+            else
+            {
+                _drawing.Points[1] = p;
+            }
+
             if (_drawing.Type == ShapeType.RotatedRectangle && _drawingStartPoint is SKPoint startPoint)
             {
                 _drawing.Points = CreateAxisAlignedRotatedRectanglePoints(startPoint, p);
@@ -1296,6 +1355,50 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (shape.Type == ShapeType.Line && shape.Points.Count >= 2)
         {
+            var useOrthogonal = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+            if (handle.Index == 0)
+            {
+                shape.Points[0] = useOrthogonal ? GetOrthogonalPoint(shape.Points[1], p) : p;
+            }
+            else if (handle.Index == 1)
+            {
+                shape.Points[1] = useOrthogonal ? GetOrthogonalPoint(shape.Points[0], p) : p;
+            }
+            return;
+        }
+
+        if (shape.Type == ShapeType.PolygonWithHoles)
+        {
+            if (handle.HoleIndex is int holeIndex)
+            {
+                if (holeIndex >= 0 && holeIndex < shape.PolygonHoles.Count &&
+                    shape.PolygonHoles[holeIndex].IsHole &&
+                    handle.Index >= 0 && handle.Index < shape.PolygonHoles[holeIndex].Points.Count)
+                {
+                    shape.PolygonHoles[holeIndex].Points[handle.Index] = p;
+                }
+            }
+            else if (handle.Index >= 0 && handle.Index < shape.Points.Count)
+            {
+                shape.Points[handle.Index] = p;
+            }
+            return;
+        }
+
+        if (shape.Type == ShapeType.RotatedRectangle && shape.Points.Count >= 4)
+        {
+            ResizeRotatedRectangleByCorner(shape, handle.Index, p);
+            return;
+        }
+
+        if (shape.Type == ShapeType.CrossPoint && shape.Points.Count >= 1)
+        {
+            shape.Points[0] = p;
+            return;
+        }
+
+        if (shape.Type == ShapeType.Line && shape.Points.Count >= 2)
+        {
             if (handle.Index == 0) shape.Points[0] = p;
             else if (handle.Index == 1) shape.Points[1] = p;
             return;
@@ -1357,6 +1460,19 @@ public sealed class SkiaImageEditorControl : UserControl
         }
 
         return inside;
+    }
+
+
+    private static SKPoint GetOrthogonalPoint(SKPoint anchor, SKPoint candidate)
+    {
+        var dx = MathF.Abs(candidate.X - anchor.X);
+        var dy = MathF.Abs(candidate.Y - anchor.Y);
+        if (dx >= dy)
+        {
+            return new SKPoint(candidate.X, anchor.Y);
+        }
+
+        return new SKPoint(anchor.X, candidate.Y);
     }
 
     private int HitPolygonEdge(ShapeModel shape, SKPoint p)
