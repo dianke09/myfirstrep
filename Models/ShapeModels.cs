@@ -84,9 +84,9 @@ public sealed class RectangleShapeModel : ShapeModel
             case ShapeType.PolygonWithHoles:
                 path.FillType = SKPathFillType.EvenOdd;
                 AddPolygon(path, Points);
-                foreach (var hole in PolygonHoles.Where(h => h.IsHole))
+                foreach (var contour in PolygonHoles)
                 {
-                    AddPolygon(path, hole.Points);
+                    AddPolygon(path, contour.Points);
                 }
                 break;
             case ShapeType.Line:
