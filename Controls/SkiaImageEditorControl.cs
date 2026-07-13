@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -7,11 +8,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using Myfirstrep.Models;
+using OpenCvSharp;
 using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using SkiaSharp.Views.WPF;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 
 namespace Myfirstrep.Controls;
 
@@ -93,7 +93,37 @@ public sealed class SkiaImageEditorControl : UserControl
         _surface.Focusable = true;
         _surface.KeyDown += OnKeyDown;
 
-        var deleteMenu = new MenuItem { Header = "删除选中图形" };
+        _mainMenu = new ContextMenu();
+
+        var loadImageMenu = new MenuItem { Header = "加载图片" };
+        loadImageMenu.Click += (_, _) => ShowLoadImageDialog();
+        _mainMenu.Items.Add(loadImageMenu);
+
+        _mainMenu.Items.Add(new Separator());
+
+        var selectMenu = new MenuItem { Header = "切换到选择模式" };
+        selectMenu.Click += (_, _) => SetTool(EditorTool.Select);
+        _mainMenu.Items.Add(selectMenu);
+
+        var panMenu = new MenuItem { Header = "切换到平移模式" };
+        panMenu.Click += (_, _) => SetTool(EditorTool.Pan);
+        _mainMenu.Items.Add(panMenu);
+
+        var rectangleMenu = new MenuItem { Header = "切换到矩形模式" };
+        rectangleMenu.Click += (_, _) => SetTool(EditorTool.Rectangle);
+        _mainMenu.Items.Add(rectangleMenu);
+
+        var circleMenu = new MenuItem { Header = "切换到圆形模式" };
+        circleMenu.Click += (_, _) => SetTool(EditorTool.Circle);
+        _mainMenu.Items.Add(circleMenu);
+
+        var polygonMenu = new MenuItem { Header = "切换到多边形模式" };
+        polygonMenu.Click += (_, _) => SetTool(EditorTool.Polygon);
+        _mainMenu.Items.Add(polygonMenu);
+
+        _mainMenu.Items.Add(new Separator());
+
+        var deleteMenu = new MenuItem { Header = "删除选中图形", Name = "DeleteSelectedShapeMenu" };
         deleteMenu.Click += (_, _) =>
         {
             if (_selected is null || !CanInteractWithShape(_selected)) return;
@@ -101,6 +131,79 @@ public sealed class SkiaImageEditorControl : UserControl
             _selected = null;
             Redraw();
         };
+        _mainMenu.Items.Add(deleteMenu);
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _geometryMenu = new MenuItem { Header = "精细调整" };
+        _geometryMenu.Click += (_, _) => ShowShapeGeometryDialog();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _geometryMenu = new MenuItem { Header = "精细调整" };
+        _geometryMenu.Click += (_, _) => ShowShapeGeometryDialog();
+
+        _copyShapeMenu = new MenuItem { Header = "复制" };
+        _copyShapeMenu.Click += (_, _) => CopySelectedShape();
+
+        _pasteShapeMenu = new MenuItem { Header = "粘贴" };
+        _pasteShapeMenu.Click += (_, _) => PasteCopiedShape();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _geometryMenu = new MenuItem { Header = "精细调整" };
+        _geometryMenu.Click += (_, _) => ShowShapeGeometryDialog();
+
+        _copyShapeMenu = new MenuItem { Header = "复制" };
+        _copyShapeMenu.Click += (_, _) => CopySelectedShape();
+
+        _pasteShapeMenu = new MenuItem { Header = "粘贴" };
+        _pasteShapeMenu.Click += (_, _) => PasteCopiedShape();
+
+        _sliceRectangleMenu = new MenuItem { Header = "切片" };
+        _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
+
+        _geometryMenu = new MenuItem { Header = "精细调整" };
+        _geometryMenu.Click += (_, _) => ShowShapeGeometryDialog();
+
+        _copyShapeMenu = new MenuItem { Header = "复制" };
+        _copyShapeMenu.Click += (_, _) => CopySelectedShape();
+
+        _pasteShapeMenu = new MenuItem { Header = "粘贴" };
+        _pasteShapeMenu.Click += (_, _) => PasteCopiedShape();
 
         _sliceRectangleMenu = new MenuItem { Header = "切片" };
         _sliceRectangleMenu.Click += (_, _) => ShowRectangleSliceDialog();
@@ -289,7 +392,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_bitmap is not null)
         {
-            canvas.DrawBitmap(_bitmap, 0, 0);
+            DrawVisibleBitmapOnly(canvas, e.Info.Width, e.Info.Height);
         }
 
         foreach (var shape in _shapes)
@@ -417,6 +520,7 @@ public sealed class SkiaImageEditorControl : UserControl
 
         DrawShapeSlices(canvas, shape);
         canvas.DrawPath(path, stroke);
+        DrawRectangleSlices(canvas, shape);
     }
 
     private static void DrawShapeSlices(SKCanvas canvas, ShapeModel shape)
@@ -466,56 +570,108 @@ public sealed class SkiaImageEditorControl : UserControl
 
     private void DrawRegionLabel(SKCanvas canvas, ShapeModel shape)
     {
-        var text = string.IsNullOrWhiteSpace(shape.RegionName) ? "未分配" : shape.RegionName;
-        var labelRect = GetRegionLabelRect(shape, text);
-        if (labelRect is null) return;
-
-        using var bg = new SKPaint { Color = SKColors.Black.WithAlpha(130), Style = SKPaintStyle.Fill, IsAntialias = true };
-        using var textPaint = new SKPaint
+        if (!IsSliceableShape(shape) || shape.RectangleSlice is not { RowHeight: > 0 })
         {
-            Color = SKColors.White,
+            return;
+        }
+
+        if (shape.SubSlicedRectangles.Count == 0)
+        {
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
+        {
+            Color = shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1f, shape.StrokeWidth),
             IsAntialias = true,
-            TextSize = 14f / _zoom,
-            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei")
+            PathEffect = dash
         };
-        var padding = 4f / _zoom;
-        canvas.DrawRoundRect(labelRect.Value, 3f / _zoom, 3f / _zoom, bg);
-        canvas.DrawText(text, labelRect.Value.Left + padding, labelRect.Value.Bottom - 6f / _zoom, textPaint);
-    }
 
-    private void OnMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        var old = _zoom;
-        _zoom = e.Delta > 0 ? _zoom * 1.1f : _zoom / 1.1f;
-        _zoom = Math.Clamp(_zoom, 0.1f, 30f);
-
-        var pos = ToSurfacePoint(e.GetPosition(_surface));
-        var worldX = (pos.X - _pan.X) / old;
-        var worldY = (pos.Y - _pan.Y) / old;
-        _pan = new SKPoint(pos.X - worldX * _zoom, pos.Y - worldY * _zoom);
-        Redraw();
-    }
-
-    private void OnMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        _surface.Focus();
-        _lastMouse = e.GetPosition(_surface);
-        var p = ToWorld(_lastMouse);
-        _lastWorld = p;
-
-        if (e.LeftButton == MouseButtonState.Pressed && e.ClickCount > 1)
+        foreach (var subRectangle in shape.SubSlicedRectangles)
         {
-            FitImageToViewport();
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
+        }
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
+        {
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
+    private void DrawRegionLabel(SKCanvas canvas, ShapeModel shape)
+    {
+        if (!IsSliceableShape(shape) || shape.RectangleSlice is not { RowHeight: > 0 })
+        {
             return;
         }
 
-        if (_tool == EditorTool.Polygon && e.ChangedButton == MouseButton.Right && _polygonBuffer.Count > 0)
+        if (shape.SubSlicedRectangles.Count == 0)
         {
-            _draftPolygonMenu.IsOpen = true;
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
+        {
+            Color = shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1f, shape.StrokeWidth),
+            IsAntialias = true,
+            PathEffect = dash
+        };
+
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
+        }
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
+        {
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
+    private static void DrawShapeSlices(SKCanvas canvas, ShapeModel shape)
+    {
+        if (!IsSliceableShape(shape) || shape.RectangleSlice is not { RowHeight: > 0 })
+        {
             return;
         }
 
-        if (e.ChangedButton == MouseButton.Right)
+        if (shape.SubSlicedRectangles.Count == 0)
+        {
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
         {
             var shapeAtLabel = AreShapesInteractive ? HitTestRegionLabel(p) : null;
             if (shapeAtLabel is not null)
@@ -549,15 +705,23 @@ public sealed class SkiaImageEditorControl : UserControl
                 return;
             }
         }
+    }
 
         var isLeftPress = e.ChangedButton == MouseButton.Left && e.LeftButton == MouseButtonState.Pressed;
         if ((_tool == EditorTool.Pan || Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) && isLeftPress)
         {
-            _isCanvasPanning = true;
-            return;
-        }
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
 
-        if (_tool == EditorTool.Select)
+    private void DrawRegionLabel(SKCanvas canvas, ShapeModel shape)
+    {
+        if (!IsSliceableShape(shape) || shape.RectangleSlice is not { RowHeight: > 0 })
         {
             if (_selected?.Type == ShapeType.RotatedRectangle && CanInteractWithShape(_selected) &&
                 e.LeftButton == MouseButtonState.Pressed && IsOnRotationHandle(_selected, p))
@@ -627,37 +791,46 @@ public sealed class SkiaImageEditorControl : UserControl
 
         if (_tool == EditorTool.Polygon && e.LeftButton == MouseButtonState.Pressed)
         {
-            var canCloseByDoubleClick = e.ClickCount > 1 && _polygonBuffer.Count >= 3 &&
-                                        Distance(p, _polygonBuffer[^1]) < 8f / _zoom;
-            var canCloseByManualConnect = _polygonBuffer.Count >= 3 && Distance(p, _polygonBuffer[0]) < 8f / _zoom;
+            Color = shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1f, shape.StrokeWidth),
+            IsAntialias = true,
+            PathEffect = dash
+        };
 
-            if (canCloseByDoubleClick || canCloseByManualConnect)
-            {
-                _shapes.Add(new ShapeModel { Type = ShapeType.Polygon, Points = new List<SKPoint>(_polygonBuffer) });
-                _polygonBuffer.Clear();
-                _polygonHoverPoint = null;
-            }
-            else
-            {
-                _polygonBuffer.Add(p);
-            }
-            Redraw();
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
         }
     }
 
-    private void OnMouseMove(object sender, MouseEventArgs e)
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
     {
-        var pos = e.GetPosition(_surface);
-        var p = ToWorld(pos);
-
-        if (_isCanvasPanning)
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
         {
-            var now = ToSurfacePoint(pos);
-            var before = ToSurfacePoint(_lastMouse);
-            var dx = now.X - before.X;
-            var dy = now.Y - before.Y;
-            _pan = new SKPoint(_pan.X + dx, _pan.Y + dy);
-            _lastMouse = pos;
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
+    private void DrawRegionLabel(SKCanvas canvas, ShapeModel shape)
+    {
+        if (!IsSliceableShape(shape) || shape.RectangleSlice is not { RowHeight: > 0 })
+        {
+            return;
+        }
+
+        if (_isShapeRotating && _selected is not null && CanInteractWithShape(_selected) && e.LeftButton == MouseButtonState.Pressed)
+        {
+            RotateShapeToPoint(_selected, p);
             Redraw();
             return;
         }
@@ -694,6 +867,322 @@ public sealed class SkiaImageEditorControl : UserControl
             {
                 _lastWorld = p;
             }
+            Redraw();
+            return;
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
+        {
+            if (_drawing.Type == ShapeType.Line && _drawing.Points.Count >= 2)
+            {
+                var end = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)
+                    ? GetOrthogonalPoint(_drawing.Points[0], p)
+                    : p;
+                _drawing.Points[1] = end;
+            }
+            else
+            {
+                _drawing.Points[1] = p;
+            }
+
+            if (_drawing.Type == ShapeType.RotatedRectangle && _drawingStartPoint is SKPoint startPoint)
+            {
+                _drawing.Points = CreateAxisAlignedRotatedRectanglePoints(startPoint, p);
+            }
+            else if (_drawing.Type == ShapeType.Corner && _drawing.Points.Count >= 1)
+            {
+                UpdateCornerLines(_drawing, p);
+            }
+            Redraw();
+            return;
+        }
+
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
+        }
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
+        {
+            _polygonHoverPoint = p;
+            if (_polygonBuffer.Count > 0 && IsOnPolygonVertexPreview(p))
+            {
+                Cursor = Cursors.Hand;
+            }
+            else if (_selected is not null && CanInteractWithShape(_selected) && HitTestHandle(_selected, p) is not null)
+            {
+                Cursor = Cursors.Hand;
+            }
+            else
+            {
+                Cursor = Cursors.Arrow;
+            }
+            Redraw();
+        }
+        else if (_selected is not null && CanInteractWithShape(_selected) && HitTestHandle(_selected, p) is not null)
+        {
+            Color = shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(1f, shape.StrokeWidth),
+            IsAntialias = true,
+            PathEffect = dash
+        };
+
+        var columnWidth = rect.Width / slice.Columns;
+        for (var column = 1; column < slice.Columns; column++)
+        {
+            var x = rect.Left + columnWidth * column;
+            canvas.DrawLine(x, rect.Top, x, rect.Bottom, paint);
+        }
+
+    private void OnMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        _isCanvasPanning = false;
+        _isShapeDragging = false;
+        _isShapeRotating = false;
+        _activeHandle = null;
+        _activeHoleDragIndex = null;
+        _activeCornerLineIndex = null;
+        if (_drawing is not null)
+        {
+            _shapes.Add(_drawing);
+            _drawing = null;
+            _drawingStartPoint = null;
+            Redraw();
+        }
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            if (e.Key == Key.C)
+            {
+                e.Handled = CopySelectedShape();
+                return;
+            }
+
+            if (e.Key == Key.V)
+            {
+                e.Handled = PasteCopiedShape();
+                return;
+            }
+        }
+
+        if (TryMoveSelectedShapeByArrowKey(e))
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter && _tool == EditorTool.Polygon && _polygonBuffer.Count >= 3)
+        {
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
+    private static void DrawCrossPoint(SKCanvas canvas, ShapeModel shape, bool isSelected)
+    {
+        if (shape.Points.Count < 1) return;
+        var p = shape.Points[0];
+        var size = 8f;
+        using var stroke = new SKPaint
+        {
+            Color = isSelected ? SKColors.Yellow : shape.GetStrokeColor(),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = Math.Max(2f, shape.StrokeWidth),
+            IsAntialias = true
+        };
+        canvas.DrawLine(p.X - size, p.Y, p.X + size, p.Y, stroke);
+        canvas.DrawLine(p.X, p.Y - size, p.X, p.Y + size, stroke);
+    }
+
+    private static void DrawRectangleSlices(SKCanvas canvas, ShapeModel shape)
+    {
+        if (shape.Type != ShapeType.Rectangle || shape.Points.Count < 2 ||
+            shape.RectangleSlice is not { Columns: > 0, Rows: > 0 })
+        {
+            return;
+        }
+
+        if (shape.SubSlicedRectangles.Count == 0)
+        {
+            var shapeAtLabel = AreShapesInteractive ? HitTestRegionLabel(p) : null;
+            if (shapeAtLabel is not null)
+            {
+                var dialog = new RegionEditDialog(shapeAtLabel.RegionName) { Owner = Window.GetWindow(this) };
+                if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.RegionName))
+                {
+                    shapeAtLabel.RegionName = dialog.RegionName;
+                    Redraw();
+                }
+                return;
+            }
+        }
+    }
+
+        if (e.ChangedButton == MouseButton.Right)
+        {
+            var shapeAtPointer = HitTest(p);
+            if (shapeAtPointer is not null)
+            {
+                _selected = shapeAtPointer;
+                ContextMenu!.IsOpen = true;
+                Redraw();
+                return;
+            }
+
+            if (_copiedShape is not null && AreShapesInteractive)
+            {
+                _selected = null;
+                ContextMenu!.IsOpen = true;
+                Redraw();
+                return;
+            }
+        }
+
+        var isLeftPress = e.ChangedButton == MouseButton.Left && e.LeftButton == MouseButtonState.Pressed;
+        if ((_tool == EditorTool.Pan || Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) && isLeftPress)
+        {
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        using var dash = SKPathEffect.CreateDash(new[] { 6f, 4f }, 0f);
+        using var paint = new SKPaint
+        {
+            if (_selected?.Type == ShapeType.RotatedRectangle && CanInteractWithShape(_selected) &&
+                e.LeftButton == MouseButtonState.Pressed && IsOnRotationHandle(_selected, p))
+            {
+                _isShapeRotating = true;
+                return;
+            }
+
+            _selected = HitTest(p);
+            if (_selected is not null && e.LeftButton == MouseButtonState.Pressed)
+            {
+                if (_selected.Type == ShapeType.RotatedRectangle && IsOnRotationHandle(_selected, p))
+                {
+                    _isShapeRotating = true;
+                    return;
+                }
+                _activeHandle = HitTestHandle(_selected, p);
+                if (_selected.Type == ShapeType.Polygon && _activeHandle is null)
+                {
+                    var edgeIndex = HitPolygonEdge(_selected, p);
+                    if (edgeIndex >= 0)
+                    {
+                        _selected.Points.Insert(edgeIndex + 1, p);
+                        _activeHandle = new EditHandle { Index = edgeIndex + 1 };
+                    }
+                }
+                else if (_selected.Type == ShapeType.PolygonWithHoles && _activeHandle is null)
+                {
+                    _activeHoleDragIndex = HitPolygonHole(_selected, p);
+                }
+                else if (_selected.Type == ShapeType.Corner && _activeHandle is null)
+                {
+                    _activeCornerLineIndex = HitCornerLine(_selected, p, 8f / _zoom);
+                    if (_activeCornerLineIndex < 0 && GetCornerBounds(_selected) is SKRect bounds && bounds.Contains(p))
+                    {
+                        _activeCornerLineIndex = null;
+                    }
+                }
+
+        foreach (var subRectangle in shape.SubSlicedRectangles)
+        {
+            using var subPath = subRectangle.ToPath();
+            canvas.DrawPath(subPath, paint);
+        }
+    }
+
+        if (_tool == EditorTool.Rectangle || _tool == EditorTool.Circle || _tool == EditorTool.RotatedRectangle || _tool == EditorTool.Line || _tool == EditorTool.Corner)
+        {
+            var shapeType = _tool == EditorTool.Rectangle ? ShapeType.Rectangle :
+                            _tool == EditorTool.Circle ? ShapeType.Circle :
+                            _tool == EditorTool.RotatedRectangle ? ShapeType.RotatedRectangle :
+                            _tool == EditorTool.Line ? ShapeType.Line : ShapeType.Corner;
+            _drawingStartPoint = p;
+            _drawing = new ShapeModel
+            {
+                Type = shapeType,
+                Points = new List<SKPoint> { p, p }
+            };
+            return;
+        }
+
+        if (_tool == EditorTool.CrossPoint && e.LeftButton == MouseButtonState.Pressed)
+        {
+            _shapes.Add(new ShapeModel { Type = ShapeType.CrossPoint, Points = new List<SKPoint> { p } });
+            Redraw();
+            return;
+        }
+
+        if (_tool == EditorTool.Polygon && e.LeftButton == MouseButtonState.Pressed)
+        {
+            _shapes.Add(new ShapeModel { Type = ShapeType.CrossPoint, Points = new List<SKPoint> { p } });
+            Redraw();
+            return;
+        }
+
+        if (_tool == EditorTool.Polygon && e.LeftButton == MouseButtonState.Pressed)
+        {
+            _shapes.Add(new ShapeModel { Type = ShapeType.CrossPoint, Points = new List<SKPoint> { p } });
+            Redraw();
+            return;
+        }
+
+        if (_tool == EditorTool.Polygon && e.LeftButton == MouseButtonState.Pressed)
+        {
+            RebuildSubSlicedRectangles(shape);
+        }
+
+        if (_isShapeRotating && _selected is not null && CanInteractWithShape(_selected) && e.LeftButton == MouseButtonState.Pressed)
+        {
+            RotateShapeToPoint(_selected, p);
+            Redraw();
+            return;
+        }
+
+        if (_isShapeRotating && _selected is not null && CanInteractWithShape(_selected) && e.LeftButton == MouseButtonState.Pressed)
+        {
+            RotateShapeToPoint(_selected, p);
+            Redraw();
+            return;
+        }
+
+        if (_isShapeDragging && _selected is not null && CanInteractWithShape(_selected) && e.LeftButton == MouseButtonState.Pressed)
+        {
+            var dx = p.X - _lastWorld.X;
+            var dy = p.Y - _lastWorld.Y;
+            if (_activeHandle is not null)
+            {
+                ResizeShapeByHandle(_selected, _activeHandle, p);
+            }
+            else if (_activeHoleDragIndex is int holeIndex)
+            {
+                TranslatePolygonHole(_selected, holeIndex, dx, dy);
+            }
+            else if (_selected.Type == ShapeType.Corner && _activeCornerLineIndex is int lineIndex)
+            {
+                TranslateCornerLine(_selected, lineIndex, dx, dy);
+            }
+            else
+            {
+                TranslateShape(_selected, dx, dy);
+            }
+            _lastWorld = p;
             Redraw();
             return;
         }
@@ -771,37 +1260,6 @@ public sealed class SkiaImageEditorControl : UserControl
             _shapes.Add(_drawing);
             _drawing = null;
             _drawingStartPoint = null;
-            Redraw();
-        }
-    }
-
-    private void OnKeyDown(object sender, KeyEventArgs e)
-    {
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-        {
-            if (e.Key == Key.C)
-            {
-                e.Handled = CopySelectedShape();
-                return;
-            }
-
-            if (e.Key == Key.V)
-            {
-                e.Handled = PasteCopiedShape();
-                return;
-            }
-        }
-
-        if (TryMoveSelectedShapeByArrowKey(e))
-        {
-            return;
-        }
-
-        if (e.Key == Key.Enter && _tool == EditorTool.Polygon && _polygonBuffer.Count >= 3)
-        {
-            _shapes.Add(new ShapeModel { Type = ShapeType.Polygon, Points = new List<SKPoint>(_polygonBuffer) });
-            _polygonBuffer.Clear();
-            _polygonHoverPoint = null;
             Redraw();
         }
     }
@@ -922,8 +1380,13 @@ public sealed class SkiaImageEditorControl : UserControl
             using var path = _shapes[i].ToPath();
             if (path.Contains(p.X, p.Y))
             {
-                return _shapes[i];
+                var line = shape.CornerLines[lineIndex];
+                if (line.Type == ShapeType.Line && line.Points.Count >= 2 && pointIndex < line.Points.Count)
+                {
+                    line.Points[pointIndex] = p;
+                }
             }
+            return;
         }
 
         return null;
@@ -948,31 +1411,14 @@ public sealed class SkiaImageEditorControl : UserControl
         var worldToScreen = CreateWorldToScreenMatrix();
         if (!worldToScreen.TryInvert(out var screenToWorld))
         {
-            var fallback = ToSurfacePoint(p);
-            return new SKPoint(fallback.X, fallback.Y);
+            ResizeRotatedRectangleByCorner(shape, handle.Index, p);
+            return;
         }
 
-        var surface = ToSurfacePoint(p);
-        return screenToWorld.MapPoint(surface);
-    }
-
-    private SKMatrix CreateWorldToScreenMatrix()
-        => SKMatrix.CreateScaleTranslation(_zoom, _zoom, _pan.X, _pan.Y);
-
-    private SKPoint ToSurfacePoint(Point p)
-    {
-        var width = _surface.ActualWidth <= 0 ? 1.0 : _surface.ActualWidth;
-        var height = _surface.ActualHeight <= 0 ? 1.0 : _surface.ActualHeight;
-        var scaleX = (float)(_surface.CanvasSize.Width / width);
-        var scaleY = (float)(_surface.CanvasSize.Height / height);
-        return new SKPoint((float)p.X * scaleX, (float)p.Y * scaleY);
-    }
-
-    private void TranslateShape(ShapeModel shape, float dx, float dy)
-    {
-        for (var i = 0; i < shape.Points.Count; i++)
+        if (shape.Type == ShapeType.CrossPoint && shape.Points.Count >= 1)
         {
-            shape.Points[i] = new SKPoint(shape.Points[i].X + dx, shape.Points[i].Y + dy);
+            shape.Points[0] = p;
+            return;
         }
 
         foreach (var subRectangle in shape.SubSlicedRectangles)
@@ -997,7 +1443,6 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             points[i] = new SKPoint(points[i].X + dx, points[i].Y + dy);
         }
-    }
 
     private static bool TranslatePolygonHole(ShapeModel shape, int holeIndex, float dx, float dy)
     {
@@ -1220,33 +1665,33 @@ public sealed class SkiaImageEditorControl : UserControl
 
     private SKRect? GetRegionLabelRect(ShapeModel shape, string text)
     {
-        using var path = shape.ToPath();
-        var bounds = path.Bounds;
-        if (bounds.Width <= 0 || bounds.Height <= 0) return null;
+        if (polygon.Count < 2) return false;
 
-        using var textPaint = new SKPaint
+        const float tolerance = 1e-3f;
+        for (var i = 0; i < polygon.Count; i++)
         {
-            TextSize = 14f / _zoom,
-            Typeface = SKTypeface.FromFamilyName("Microsoft YaHei")
-        };
-        var textWidth = textPaint.MeasureText(text);
-        var padding = 4f / _zoom;
-        var labelHeight = 20f / _zoom;
-        return new SKRect(bounds.Left, bounds.Top - labelHeight - 2f / _zoom, bounds.Left + textWidth + padding * 2, bounds.Top - 2f / _zoom);
-    }
-
-    private void ResizeShapeByHandle(ShapeModel shape, EditHandle handle, SKPoint p)
-    {
-        if (shape.Type == ShapeType.Circle && shape.Points.Count >= 2)
-        {
-            if (handle.Index == 0) shape.Points[0] = p;
-            else shape.Points[1] = p;
-            return;
+            var a = polygon[i];
+            var b = polygon[(i + 1) % polygon.Count];
+            if (DistancePointToSegment(point, a, b) <= tolerance)
+            {
+                return true;
+            }
         }
 
-        if (shape.Type == ShapeType.Polygon)
+        return false;
+    }
+
+    private static bool IsPointInPolygon(IReadOnlyList<SKPoint> polygon, SKPoint p)
+    {
+        if (polygon.Count < 3) return false;
+
+        var inside = false;
+        for (int i = 0, j = polygon.Count - 1; i < polygon.Count; j = i++)
         {
-            if (handle.Index >= 0 && handle.Index < shape.Points.Count)
+            var pi = polygon[i];
+            var pj = polygon[j];
+            if ((pi.Y > p.Y) != (pj.Y > p.Y) &&
+                p.X < (pj.X - pi.X) * (p.Y - pi.Y) / (pj.Y - pi.Y) + pi.X)
             {
                 shape.Points[handle.Index] = p;
                 RebuildSubSlicedRectangles(shape);
@@ -1318,27 +1763,11 @@ public sealed class SkiaImageEditorControl : UserControl
                     line.Points[pointIndex] = p;
                 }
             }
-            return;
         }
 
-        if (shape.Type == ShapeType.Rectangle && shape.Points.Count >= 2)
-        {
-            var minX = Math.Min(shape.Points[0].X, shape.Points[1].X);
-            var maxX = Math.Max(shape.Points[0].X, shape.Points[1].X);
-            var minY = Math.Min(shape.Points[0].Y, shape.Points[1].Y);
-            var maxY = Math.Max(shape.Points[0].Y, shape.Points[1].Y);
+        return inside;
+    }
 
-            switch (handle.Index)
-            {
-                case 0: minX = p.X; minY = p.Y; break;
-                case 1: minY = p.Y; break;
-                case 2: maxX = p.X; minY = p.Y; break;
-                case 3: maxX = p.X; break;
-                case 4: maxX = p.X; maxY = p.Y; break;
-                case 5: maxY = p.Y; break;
-                case 6: minX = p.X; maxY = p.Y; break;
-                case 7: minX = p.X; break;
-            }
 
             shape.Points[0] = new SKPoint(minX, minY);
             shape.Points[1] = new SKPoint(maxX, maxY);
@@ -1873,6 +2302,19 @@ public sealed class SkiaImageEditorControl : UserControl
 
     private void Redraw() => _surface.InvalidateVisual();
 
+    private void OpenMainMenu()
+    {
+        foreach (var item in _mainMenu.Items)
+        {
+            if (item is MenuItem menu && menu.Name == "DeleteSelectedShapeMenu")
+            {
+                menu.IsEnabled = _selected is not null;
+                break;
+            }
+        }
+        _mainMenu.IsOpen = true;
+    }
+
     public void ShowLoadImageDialog()
     {
         var d = new OpenFileDialog { Filter = "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff" };
@@ -1889,12 +2331,11 @@ public sealed class SkiaImageEditorControl : UserControl
         {
             try
             {
-                using var depth = SixLabors.ImageSharp.Image.Load<L16>(path);
-                return Convert16BitDepthToBitmap(depth);
+                return LoadTiffWithOpenCv(path);
             }
             catch
             {
-                // Fallback for non-L16 TIFF variants.
+                // Fallback for unexpected TIFF variants.
             }
         }
 
@@ -1902,39 +2343,53 @@ public sealed class SkiaImageEditorControl : UserControl
         return SKBitmap.Decode(stream);
     }
 
-    private static SKBitmap Convert16BitDepthToBitmap(Image<L16> depth)
+    private static SKBitmap LoadTiffWithOpenCv(string path)
     {
-        var width = depth.Width;
-        var height = depth.Height;
-        var frame = depth.Frames.RootFrame;
-        var min = ushort.MaxValue;
-        var max = ushort.MinValue;
-
-        for (var y = 0; y < height; y++)
+        using var mat = Cv2.ImRead(path, ImreadModes.Unchanged);
+        if (mat.Empty())
         {
-            var row = frame.GetPixelRowSpan(y);
-            for (var x = 0; x < width; x++)
-            {
-                var v = row[x].PackedValue;
-                if (v < min) min = v;
-                if (v > max) max = v;
-            }
+            throw new InvalidOperationException("无法读取TIFF图像。");
         }
 
-        var range = Math.Max(1, max - min);
-        var bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Opaque);
-        for (var y = 0; y < height; y++)
+        Mat display;
+        if (mat.Type().Depth == MatType.CV_16U)
         {
-            var row = frame.GetPixelRowSpan(y);
-            for (var x = 0; x < width; x++)
-            {
-                var v = row[x].PackedValue;
-                var gray = (byte)(((v - min) * 255) / range);
-                bitmap.SetPixel(x, y, new SKColor(gray, gray, gray));
-            }
+            display = new Mat();
+            Cv2.Normalize(mat, display, 0, 255, NormTypes.MinMax, MatType.CV_8U);
+        }
+        else if (mat.Type().Depth == MatType.CV_8U)
+        {
+            display = mat.Clone();
+        }
+        else
+        {
+            display = new Mat();
+            mat.ConvertTo(display, MatType.CV_8U);
         }
 
-        return bitmap;
+        using (display)
+        {
+            using var bgra = new Mat();
+            if (display.Channels() == 1)
+            {
+                Cv2.CvtColor(display, bgra, ColorConversionCodes.GRAY2BGRA);
+            }
+            else if (display.Channels() == 3)
+            {
+                Cv2.CvtColor(display, bgra, ColorConversionCodes.BGR2BGRA);
+            }
+            else
+            {
+                display.CopyTo(bgra);
+            }
+
+            var bitmap = new SKBitmap(bgra.Width, bgra.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+            var totalBytes = (int)(bgra.Total() * bgra.ElemSize());
+            var buffer = new byte[totalBytes];
+            Marshal.Copy(bgra.Data, buffer, 0, totalBytes);
+            Marshal.Copy(buffer, 0, bitmap.GetPixels(), totalBytes);
+            return bitmap;
+        }
     }
 
     public void ShowSaveStateDialog()
