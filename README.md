@@ -17,12 +17,15 @@
 13. 多边形绘制未闭合时右键弹出菜单供用户选择“取消当前多边形绘制”；鼠标移动到图形顶点时自动变为手型，移开恢复箭头。
 14. 每个图形有“归属区域”属性，会在图形包围框上方显示半透明标签；右键点击标签可弹出编辑窗并实时更新显示。
 15. RegionName 标签字体为“微软雅黑（Microsoft YaHei）”；JSON 以 UTF-8 写入并支持中文字符直写。
-16. 支持加载 16 位深度 TIFF（`.tif/.tiff`）并自动做深度归一化显示。
+16. 支持加载 16 位深度 TIFF（`.tif/.tiff`）并自动做深度归一化显示（基于 OpenCvSharp）。
+17. 大图（含 TIFF）渲染时仅绘制当前视口可见区域，缩放/平移交互更流畅。
+18. 控件右键菜单支持：加载图片、切换 Select/Pan/Rectangle/Circle/Polygon 模式，以及删除当前选中图形。
 
 ## 主要文件
 
 - `Controls/SkiaImageEditorControl.cs`：控件核心，含渲染、交互、命中测试、保存加载。
 - `Models/ShapeModels.cs`：图形模型和状态模型。
+  - 模型采用继承结构：`ShapeModel` 基类 + `RectangleShapeModel` / `CircleShapeModel` / `PolygonShapeModel` 子类。
 - `MainWindow.xaml` + `MainWindow.xaml.cs`：演示窗口与工具栏。
 - `docs/SkiaImageEditorControl-Development-Guide.md`：完整需求、数据模型、交互规则、切片语义、公共 API 和验收清单。
 
