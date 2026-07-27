@@ -27,6 +27,7 @@
 - `Models/ShapeModels.cs`：图形模型和状态模型。
   - 模型采用继承结构：`ShapeModel` 基类 + `RectangleShapeModel` / `CircleShapeModel` / `PolygonShapeModel` 子类。
 - `MainWindow.xaml` + `MainWindow.xaml.cs`：演示窗口与工具栏。
+- `docs/SkiaImageEditorControl-Development-Guide.md`：完整需求、数据模型、交互规则、切片语义、公共 API 和验收清单。
 
 ## 运行
 
